@@ -43,14 +43,19 @@ Instead of dispensing premature pronouncements from an isolated photo, FieldSens
 
 ## Demo
 
-- **Live Local Experience**: Run with a single command via Vite (`npm run dev`) and Python (`python main.py`).
-- **Codebase & Architecture Walkthrough**: Full repository with interactive React 19 interface, FastAPI backend, and LangGraph multi-agent pipeline is documented at [github.com/NikhilRaman12/fieldsense-ai](https://github.com/NikhilRaman12/fieldsense-ai).
+- **Public Cloud Demo Link**: Deployable for free on [Streamlit Community Cloud](https://share.streamlit.io/) with 1 click directly from the GitHub repository (`app.py`).
+- **Live Local Run**: Run immediately with a single command:
+  ```bash
+  pip install -r requirements.txt
+  streamlit run app.py
+  ```
+- **Codebase & Architecture**: Full repository with interactive Streamlit + LangGraph multi-agent pipeline is documented at [github.com/NikhilRaman12/fieldsense-ai](https://github.com/NikhilRaman12/fieldsense-ai).
 - **Core Interface Views**:
-  - 🌿 **Mission**: Outdoor observation ethos and minimal-screen guidance.
-  - 🔍 **Field Observer**: Real-time evidence collection, agent execution trace, and structured Field Investigation Reports.
-  - 📖 **Field Journal**: Local observation history with geolocation and photo logs.
+  - 🌿 **Mission & Touch Grass**: Outdoor observation ethos and minimal-screen guidance.
+  - 🔍 **Field Observer**: Real-time evidence collection, multi-agent execution trace, and structured Field Investigation Reports.
+  - 📖 **Field Journal**: Local observation history with persistence and export capability.
   - 📚 **Field Guide**: Verified botanical symptoms, differential diagnoses, and hands-on physical verification techniques.
-  - ⚙️ **Settings & Transparency**: Active AI engine indicator (LangGraph + Ollama vs. Offline Botanical Engine), source transparency, and model configuration.
+  - ⚙️ **Settings & Transparency**: LangGraph multi-agent pipeline, source transparency, and open model runtime configuration.
 
 ---
 
@@ -61,10 +66,10 @@ Instead of dispensing premature pronouncements from an isolated photo, FieldSens
 The repository is fully open-source under the MIT license:
 - **Repository URL**: [https://github.com/NikhilRaman12/fieldsense-ai](https://github.com/NikhilRaman12/fieldsense-ai)
 - **Tech Stack**:
-  - **Frontend**: React 19, TypeScript, Lucide Icons, Vite
-  - **Multi-Agent Backend**: Python 3.11+, LangGraph, FastAPI, Pydantic
-  - **Local Model Runtime**: Ollama (Llama 3.2 / Qwen 2.5 / Mistral)
-  - **Offline Fallback**: Deterministic Botanical Evidence Synthesis Graph
+  - **Frontend & App Framework**: Streamlit 1.41 (Pure Python, zero-configuration cloud deployment)
+  - **Multi-Agent Backend**: Python 3.11+, LangGraph, Pydantic
+  - **Local Model Runtime**: Ollama (Llama 3.2 / Qwen 2.5 / Gemma 3)
+  - **Offline Knowledge Fallback**: Deterministic Botanical Evidence Synthesis Graph
 
 ---
 

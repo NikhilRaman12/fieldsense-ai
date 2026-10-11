@@ -5,12 +5,21 @@
 > *A genuinely useful, fully open-source field-science application that encourages people to leave their screens, explore the outdoors, observe nature, and record discoveries. The actual outdoor activity is the main experience; the AI supports it rather than replace it.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![React](https://img.shields.io/badge/React-19-blue)](https://react.dev/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688)](https://fastapi.tiangolo.com/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.41-FF4B4B?logo=streamlit)](https://streamlit.io/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.6-orange)](https://langchain-ai.github.io/langgraph/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688)](https://fastapi.tiangolo.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-local%20AI-purple)](https://ollama.com/)
 
 ---
+
+## ⚡ Free 1-Click Deployment (Streamlit Community Cloud)
+
+You can deploy FieldSense AI for free in 30 seconds on **[Streamlit Community Cloud](https://share.streamlit.io/)**:
+1. Fork or open repository: `https://github.com/NikhilRaman12/fieldsense-ai`
+2. Go to **[share.streamlit.io](https://share.streamlit.io/)** and click **New app**.
+3. Select this repository, branch `main`, and main file path `app.py`.
+4. Click **Deploy!** — Your public demo link will be live at `https://fieldsense-ai.streamlit.app`!
+
 
 ## 🎯 What FieldSense Does
 
