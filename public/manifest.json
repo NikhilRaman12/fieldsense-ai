@@ -1,0 +1,16 @@
+{
+  "name": "FieldSense AI",
+  "short_name": "FieldSense",
+  "description": "Step outside. Observe deeply. Let AI guide the discovery—not replace it.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8f5",
+  "theme_color": "#1b382b",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

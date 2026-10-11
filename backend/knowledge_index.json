@@ -1,0 +1,30 @@
+[
+  {
+    "id": "KB-CHL-001",
+    "topic": "Nitrogen vs Magnesium Translocation",
+    "domain": "Plant Physiology & Agronomy",
+    "passage": "Both Nitrogen and Magnesium are phloem-mobile elements. When soil supply is deficient or root uptake is compromised, the plant translocates these mobile nutrients from mature basal foliage to the active meristem. Consequently, symptoms appear first on older, lower leaves. True Nitrogen deficiency manifests as generalized, uniform pale chlorosis across the blade, whereas Magnesium deficiency produces distinct interveinal chlorosis with green secondary and tertiary venation.",
+    "scientificKey": "Mobile Nutrient Translocation"
+  },
+  {
+    "id": "KB-ROOT-002",
+    "topic": "Root Zone Anoxia & Impaired Active Transport",
+    "domain": "Soil Physics & Plant Respiration",
+    "passage": "Prolonged saturation of the pore space restricts oxygen diffusion (diffusion coefficient of O2 in water is ~10,000 times lower than in air). Root cells shift to anaerobic fermentation, causing ATP depletion. Because root uptake of mobile nutrients (nitrate, magnesium, potassium) requires active H+-ATPase proton pumping, anoxic roots fail to absorb nutrients even when abundant in soil, inducing pseudo-deficiency symptoms (leaf yellowing) accompanied by epinasty or wilt.",
+    "scientificKey": "Root Zone Hypoxia / Overwatering"
+  },
+  {
+    "id": "KB-PATH-003",
+    "topic": "Vascular Wilt Pathogens (Fusarium & Verticillium)",
+    "domain": "Plant Pathology",
+    "passage": "Soil-borne vascular fungi penetrate through lateral root emergence zones and colonize xylem vessels, inducing tyloses that physically obstruct water and mineral translocation. A hallmark diagnostic criterion distinguishing vascular wilt from abiotic nutrient deficits is sectorial asymmetry: yellowing frequently begins on one side of a compound leaf or along a single lower branch before spreading systemically.",
+    "scientificKey": "Vascular Occlusion"
+  },
+  {
+    "id": "KB-MET-004",
+    "topic": "Photo-Inhibition & Meteorological Thermal Shock",
+    "domain": "Ecophysiology",
+    "passage": "Sudden transitions from overcast, moisture-saturated weather to intense solar irradiance exceed the photoprotective capacity of photosystem II (PSII). Reactive oxygen species (ROS) degrade chlorophyll pigments, causing photobleaching and marginal scorching specifically on sun-exposed upper surfaces, leaving shaded lower leaves unblemished.",
+    "scientificKey": "Abiotic Thermal Bleaching"
+  }
+]
