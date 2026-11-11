@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 from main import app
 from models import get_session, Order, OrderStatus, WebhookEvent
 from catalogue_service import load_catalogue, calculate_quote
-from paypal_client import paypal_service
+from paypal_client import paypal_service, PayPalConfigurationError, PayPalClient
 
 # In-memory database for testing
 test_engine = create_engine(
@@ -33,6 +33,19 @@ def setup_db():
     SQLModel.metadata.drop_all(test_engine)
 
 client = TestClient(app)
+
+def test_missing_paypal_credentials_fails_closed():
+    # An unconfigured client must fail closed
+    unconfigured_client = PayPalClient(client_id=None, client_secret=None)
+    assert not unconfigured_client.is_configured()
+
+    with patch.object(paypal_service, "is_configured", return_value=False):
+        res = client.post(
+            "/api/orders/create",
+            json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+        )
+        assert res.status_code == 503
+        assert "Payment gateway not configured" in res.json()["detail"]
 
 def test_health_check():
     res = client.get("/health")
@@ -70,23 +83,6 @@ def test_create_order_and_successful_capture_flow(mock_capture, mock_create):
         "status": "CREATED",
         "links": [{"href": "https://paypal.sandbox/checkout", "rel": "approve"}],
     }
-    mock_capture.return_value = {
-        "id": "PAYPAL-ORDER-VALID-123",
-        "status": "COMPLETED",
-        "purchase_units": [
-            {
-                "payments": {
-                    "captures": [
-                        {
-                            "id": "REAL-CAP-98765",
-                            "status": "COMPLETED",
-                            "amount": {"value": "25.21", "currency_code": "USD"},
-                        }
-                    ]
-                }
-            }
-        ],
-    }
 
     # 1. Create order
     create_res = client.post(
@@ -98,6 +94,27 @@ def test_create_order_and_successful_capture_flow(mock_capture, mock_create):
     assert order_data["status"] == "CREATED"
     assert order_data["paypal_order_id"] == "PAYPAL-ORDER-VALID-123"
     order_id = order_data["order_id"]
+    client_ref = order_data["client_order_ref"]
+
+    # Mock capture returning matching custom_id, amount, currency, and genuine capture ID
+    mock_capture.return_value = {
+        "id": "PAYPAL-ORDER-VALID-123",
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "custom_id": client_ref,
+                "payments": {
+                    "captures": [
+                        {
+                            "id": "GENUINE-CAP-98765",
+                            "status": "COMPLETED",
+                            "amount": {"value": "25.21", "currency_code": "USD"},
+                        }
+                    ]
+                }
+            }
+        ],
+    }
 
     # 2. Capture with correct bound PayPal Order ID
     cap_res = client.post(
@@ -107,7 +124,7 @@ def test_create_order_and_successful_capture_flow(mock_capture, mock_create):
     assert cap_res.status_code == 200
     cap_data = cap_res.json()
     assert cap_data["status"] == "COMPLETED"
-    assert cap_data["paypal_capture_id"] == "REAL-CAP-98765"
+    assert cap_data["paypal_capture_id"] == "GENUINE-CAP-98765"
 
     # 3. Idempotent re-capture
     dup_cap = client.post(
@@ -178,6 +195,80 @@ def test_capture_amount_mismatch_fails(mock_capture, mock_create):
     )
     assert cap_res.status_code == 400
     assert "amount or currency mismatch" in cap_res.json()["detail"]
+
+@patch.object(paypal_service, "create_order", new_callable=AsyncMock)
+@patch.object(paypal_service, "capture_order", new_callable=AsyncMock)
+def test_capture_currency_mismatch_fails(mock_capture, mock_create):
+    mock_create.return_value = {
+        "id": "PAYPAL-ORDER-CURRENCY-CHECK",
+        "status": "CREATED",
+        "links": [],
+    }
+    # Return EUR instead of USD
+    mock_capture.return_value = {
+        "id": "PAYPAL-ORDER-CURRENCY-CHECK",
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "payments": {
+                    "captures": [
+                        {
+                            "id": "CAP-CURRENCY",
+                            "status": "COMPLETED",
+                            "amount": {"value": "25.21", "currency_code": "EUR"},
+                        }
+                    ]
+                }
+            }
+        ],
+    }
+
+    create_res = client.post(
+        "/api/orders/create",
+        json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+    )
+    order_id = create_res.json()["order_id"]
+
+    cap_res = client.post(
+        f"/api/orders/{order_id}/capture",
+        json={"paypal_order_id": "PAYPAL-ORDER-CURRENCY-CHECK"}
+    )
+    assert cap_res.status_code == 400
+    assert "amount or currency mismatch" in cap_res.json()["detail"]
+
+@patch.object(paypal_service, "create_order", new_callable=AsyncMock)
+@patch.object(paypal_service, "capture_order", new_callable=AsyncMock)
+def test_capture_missing_capture_id_fails(mock_capture, mock_create):
+    mock_create.return_value = {
+        "id": "PAYPAL-ORDER-MISSING-CAP-ID",
+        "status": "CREATED",
+        "links": [],
+    }
+    # Return empty captures array
+    mock_capture.return_value = {
+        "id": "PAYPAL-ORDER-MISSING-CAP-ID",
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "payments": {
+                    "captures": []
+                }
+            }
+        ],
+    }
+
+    create_res = client.post(
+        "/api/orders/create",
+        json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+    )
+    order_id = create_res.json()["order_id"]
+
+    cap_res = client.post(
+        f"/api/orders/{order_id}/capture",
+        json={"paypal_order_id": "PAYPAL-ORDER-MISSING-CAP-ID"}
+    )
+    assert cap_res.status_code == 502
+    assert "no captures found" in cap_res.json()["detail"]
 
 def test_webhook_missing_headers_rejected():
     payload = {"id": "WH-1", "event_type": "PAYMENT.CAPTURE.COMPLETED"}

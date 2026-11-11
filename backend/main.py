@@ -17,10 +17,14 @@ from paypal_client import paypal_service, PayPalConfigurationError
 logger = logging.getLogger(__name__)
 
 # Enforce explicit origin whitelist (CORS Hardening)
-ALLOWED_ORIGINS = os.getenv(
-    "ALLOWED_ORIGINS",
-    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
-).split(",")
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://localhost:80"
+    ).split(",")
+    if origin.strip()
+]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -181,30 +185,19 @@ async def capture_paypal_order(
     """
     Server-authoritative capture with strict binding validation:
     1. Validates local order exists.
-    2. Validates that req.paypal_order_id matches order.paypal_order_id.
-    3. Idempotently returns completed order if already captured.
-    4. Executes capture via PayPal API.
-    5. Validates capture response status, amount, currency, and custom ID.
-    6. Updates database order to COMPLETED.
+    2. Validates order status allows capture (CREATED). Rejects invalid transitions.
+    3. Confirms local order has a bound PayPal order ID.
+    4. Validates that req.paypal_order_id strictly matches order.paypal_order_id.
+    5. Idempotently returns completed order if already captured.
+    6. Executes capture via PayPal API.
+    7. Validates capture response status, amount, currency, and custom ID reference.
+    8. Updates database order to COMPLETED only after all validations succeed.
     """
     statement = select(Order).where(Order.id == order_id)
     order = session.exec(statement).first()
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
-
-    # Strict server-side order binding check
-    if order.paypal_order_id and order.paypal_order_id != req.paypal_order_id:
-        logger.error(
-            "PayPal order ID mismatch for local order #%d: expected %s, got %s",
-            order_id,
-            order.paypal_order_id,
-            req.paypal_order_id
-        )
-        raise HTTPException(
-            status_code=400,
-            detail="Order binding error: PayPal order ID does not match local order record."
-        )
 
     # Idempotent response if already completed
     if order.status == OrderStatus.COMPLETED:
@@ -216,6 +209,33 @@ async def capture_paypal_order(
             "currency": order.currency,
             "message": "Order already captured (idempotent response).",
         }
+
+    # Reject invalid state transitions
+    if order.status not in (OrderStatus.CREATED, OrderStatus.APPROVED):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid order state transition: cannot capture order in state {order.status}."
+        )
+
+    # Confirm order has a registered PayPal Order ID
+    if not order.paypal_order_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Order has no bound PayPal order ID."
+        )
+
+    # Strict server-side order binding check
+    if order.paypal_order_id != req.paypal_order_id:
+        logger.error(
+            "PayPal order ID mismatch for local order #%d: expected %s, got %s",
+            order_id,
+            order.paypal_order_id,
+            req.paypal_order_id
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="Order binding error: PayPal order ID does not match local order record."
+        )
 
     # Execute PayPal capture
     try:
@@ -240,6 +260,21 @@ async def capture_paypal_order(
         raise HTTPException(status_code=502, detail="Malformed PayPal capture response: missing purchase_units.")
 
     pu = purchase_units[0]
+
+    # Validate purchase_unit custom_id/reference_id matches our client_order_ref
+    unit_custom_id = pu.get("custom_id") or pu.get("reference_id")
+    if unit_custom_id and unit_custom_id != order.client_order_ref:
+        logger.error(
+            "Purchase unit reference mismatch for order #%d: expected %s, got %s",
+            order_id,
+            order.client_order_ref,
+            unit_custom_id
+        )
+        order.status = OrderStatus.FAILED
+        session.add(order)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Purchase unit reference mismatch.")
+
     payments = pu.get("payments", {})
     captures = payments.get("captures", [])
     if not captures:
@@ -397,6 +432,8 @@ async def paypal_webhook_handler(
                         session.add(ord)
                 else:
                     logger.warning("Webhook amount mismatch for order ref %s. Not completing order.", custom_id)
+            else:
+                logger.warning("Webhook received for unknown order reference: %s", custom_id)
 
     session.commit()
     return {"status": "success", "event_id": event_id}

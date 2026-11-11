@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { ShoppingBag, CheckCircle2, ShieldCheck, X, AlertCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react'
+import { ShoppingBag, CheckCircle2, ShieldCheck, X, AlertCircle, Loader2 } from 'lucide-react'
 import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js'
 import type { RecommendedProduct, OrderQuote } from '../types'
 import { fetchQuote, createBackendPayPalOrder, captureBackendPayPalOrder } from '../services/fastapiService'
@@ -19,13 +19,14 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
 }) => {
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({})
   const [quote, setQuote] = useState<OrderQuote | null>(null)
-  const [_isLoadingQuote, setIsLoadingQuote] = useState<boolean>(false)
+  const [isLoadingQuote, setIsLoadingQuote] = useState<boolean>(false)
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successInfo, setSuccessInfo] = useState<{ orderId: number; captureId: string } | null>(null)
 
-  // Track the single pending order for this checkout session
-  const [currentCreatedOrderId, setCurrentCreatedOrderId] = useState<number | null>(null)
-  const [currentPayPalOrderId, setCurrentPayPalOrderId] = useState<string | null>(null)
+  // Track pending order using refs for instant synchronous availability in callbacks
+  const pendingOrderIdRef = useRef<number | null>(null)
+  const pendingPayPalOrderIdRef = useRef<string | null>(null)
 
   // Initialize first product selected with qty 1
   useEffect(() => {
@@ -42,15 +43,15 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
 
     if (activeItems.length === 0) {
       setQuote(null)
-      setCurrentCreatedOrderId(null)
-      setCurrentPayPalOrderId(null)
+      pendingOrderIdRef.current = null
+      pendingPayPalOrderIdRef.current = null
       return
     }
 
     setIsLoadingQuote(true)
     setErrorMsg(null)
-    setCurrentCreatedOrderId(null)
-    setCurrentPayPalOrderId(null)
+    pendingOrderIdRef.current = null
+    pendingPayPalOrderIdRef.current = null
 
     fetchQuote(activeItems)
       .then((q) => setQuote(q))
@@ -59,6 +60,7 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
   }, [selectedQuantities])
 
   const handleQtyChange = (sku: string, delta: number) => {
+    if (isProcessingPayment) return
     setSelectedQuantities((prev) => {
       const current = prev[sku] || 0
       const updated = Math.max(0, current + delta)
@@ -105,7 +107,8 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}
+            disabled={isProcessingPayment}
+            style={{ background: 'none', border: 'none', cursor: isProcessingPayment ? 'not-allowed' : 'pointer', color: '#64748b' }}
           >
             <X size={20} />
           </button>
@@ -163,14 +166,16 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <button
                         onClick={() => handleQtyChange(p.sku, -1)}
-                        style={{ width: '28px', height: '28px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', fontWeight: 'bold' }}
+                        disabled={isProcessingPayment}
+                        style={{ width: '28px', height: '28px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: isProcessingPayment ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
                       >
                         -
                       </button>
                       <span style={{ fontWeight: 600, minWidth: '18px', textAlign: 'center' }}>{qty}</span>
                       <button
                         onClick={() => handleQtyChange(p.sku, 1)}
-                        style={{ width: '28px', height: '28px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: 'pointer', fontWeight: 'bold' }}
+                        disabled={isProcessingPayment}
+                        style={{ width: '28px', height: '28px', borderRadius: '4px', border: '1px solid #cbd5e1', background: '#ffffff', cursor: isProcessingPayment ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
                       >
                         +
                       </button>
@@ -181,6 +186,13 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
             </div>
 
             {/* Server Quote Summary */}
+            {isLoadingQuote && (
+              <div style={{ textAlign: 'center', padding: '0.5rem', color: '#64748b', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                <Loader2 size={16} className="spin" />
+                <span>Recalculating server quotation...</span>
+              </div>
+            )}
+
             {quote && (
               <div style={{ backgroundColor: '#f8fafc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0', margin: '1rem 0' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', color: '#64748b', marginBottom: '0.25rem' }}>
@@ -209,8 +221,15 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
               </div>
             )}
 
+            {isProcessingPayment && (
+              <div style={{ textAlign: 'center', padding: '1rem', backgroundColor: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0', color: '#166534', margin: '0.5rem 0', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                <Loader2 size={18} className="spin" />
+                <span style={{ fontWeight: 600 }}>Capturing PayPal authorization server-side...</span>
+              </div>
+            )}
+
             {/* PayPal Smart Payment Buttons */}
-            {quote && quote.total > 0 && (
+            {quote && quote.total > 0 && !isProcessingPayment && (
               <div style={{ marginTop: '1.2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#047857', marginBottom: '0.5rem' }}>
                   <ShieldCheck size={16} />
@@ -221,20 +240,25 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
                   <PayPalButtons
                     style={{ layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' }}
                     createOrder={async () => {
+                      if (isProcessingPayment) {
+                        throw new Error('Payment processing already in progress.')
+                      }
                       const activeItems = Object.entries(selectedQuantities)
                         .filter(([_, qty]) => qty > 0)
                         .map(([sku, quantity]) => ({ sku, quantity }))
 
                       // Create exactly ONE local order and one PayPal order
                       const result = await createBackendPayPalOrder(activeItems)
-                      setCurrentCreatedOrderId(result.order_id)
-                      setCurrentPayPalOrderId(result.paypal_order_id)
+                      pendingOrderIdRef.current = result.order_id
+                      pendingPayPalOrderIdRef.current = result.paypal_order_id
                       return result.paypal_order_id
                     }}
                     onApprove={async (data) => {
+                      setIsProcessingPayment(true)
+                      setErrorMsg(null)
                       try {
-                        const targetOrderId = currentCreatedOrderId
-                        const targetPayPalOrderId = data.orderID || currentPayPalOrderId
+                        const targetOrderId = pendingOrderIdRef.current
+                        const targetPayPalOrderId = data.orderID || pendingPayPalOrderIdRef.current
 
                         if (!targetOrderId || !targetPayPalOrderId) {
                           throw new Error('Order identification lost during checkout. Please try again.')
@@ -245,12 +269,16 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
                         setSuccessInfo({ orderId: capRes.order_id, captureId: capRes.paypal_capture_id })
                       } catch (err: any) {
                         setErrorMsg(err.message || 'Payment capture failed.')
+                      } finally {
+                        setIsProcessingPayment(false)
                       }
                     }}
                     onCancel={() => {
+                      setIsProcessingPayment(false)
                       setErrorMsg('PayPal checkout was cancelled by the buyer.')
                     }}
                     onError={(_err) => {
+                      setIsProcessingPayment(false)
                       setErrorMsg('PayPal checkout encountered an error. Please verify gateway settings.')
                     }}
                   />
