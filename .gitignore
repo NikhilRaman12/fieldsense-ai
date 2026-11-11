@@ -33,3 +33,8 @@ __pycache__/
 venv/
 .venv/
 env/
+
+# Local Databases & Test Cache
+*.db
+*.sqlite3
+.pytest_cache/

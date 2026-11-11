@@ -1,0 +1,72 @@
+[
+  {
+    "sku": "KIT-SOIL-PH-01",
+    "title": "Precision Soil Ribbon & pH Field Test Kit",
+    "description": "Rapid chemical reagent test to verify root zone pH (4.0-9.0) and distinguish anaerobic soil compaction from simple drought.",
+    "category": "diagnostic",
+    "price": 18.99,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Root Zone Anoxia / Waterlogging (Impaired Aerobic Respiration)",
+      "Mobile Nutrient Translocation (Nitrogen or Magnesium Deficiency)",
+      "Nutrient Lockout due to Substrate pH"
+    ]
+  },
+  {
+    "sku": "OPT-LOUPE-10X",
+    "title": "Botanical 10x Achromatic Field Loupe with LED",
+    "description": "Essential field optical magnifier to inspect leaf undersides for fungal acervuli, pycnidia fruiting bodies, and microscopic mite frass.",
+    "category": "diagnostic",
+    "price": 14.50,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Vascular Wilt Occlusion (Fusarium / Verticillium)",
+      "Foliar Fungal Blight or Septoria Leaf Spot",
+      "Piercing-Sucking Insect Damage"
+    ]
+  },
+  {
+    "sku": "ECO-MICRONUT-01",
+    "title": "Chelated Magnesium & Nitrogen Organic Bio-Fertilizer (1L)",
+    "description": "OMRI-listed fast-acting foliar liquid spray delivering readily bioavailable Mg and N to resolve basal interveinal chlorosis.",
+    "category": "remediation",
+    "price": 24.00,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Mobile Nutrient Translocation (Nitrogen or Magnesium Deficiency)",
+      "Magnesium Deficiency",
+      "Nitrogen Deficiency"
+    ]
+  },
+  {
+    "sku": "BIO-TRICHO-ROOT",
+    "title": "Trichoderma harzianum Root Shield Bio-Fungicide (250g)",
+    "description": "Beneficial endophytic biological inoculant that colonizes root surfaces, outcompeting Fusarium and Pythium root rot pathogens.",
+    "category": "remediation",
+    "price": 29.50,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Vascular Wilt Occlusion (Fusarium / Verticillium)",
+      "Root Zone Anoxia / Waterlogging (Impaired Aerobic Respiration)",
+      "Damping Off & Fungal Root Occlusion"
+    ]
+  },
+  {
+    "sku": "ECO-NEEM-SHIELD",
+    "title": "Cold-Pressed Pure Organic Neem Oil Spray Concentrate (500ml)",
+    "description": "Natural broad-spectrum foliar defense effective against piercing-sucking pests and powdery mildew foliar spores.",
+    "category": "remediation",
+    "price": 16.75,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Foliar Fungal Blight or Septoria Leaf Spot",
+      "Piercing-Sucking Insect Damage",
+      "Invertebrate Herbivory"
+    ]
+  }
+]

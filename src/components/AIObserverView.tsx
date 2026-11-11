@@ -12,10 +12,12 @@ import {
   HelpCircle as QuestionIcon,
   ChevronDown,
   ChevronUp,
+  ShoppingBag,
 } from 'lucide-react'
 import type { ObservationReport, MissionType, FieldContextData } from '../types'
 import { processObservationWithFallback, ollamaService } from '../services/ollama'
 import { validateImageFile, fileToBase64 } from '../utils/imageUtils'
+import { RemediationDrawer } from './RemediationDrawer'
 
 interface AIObserverViewProps {
   initialMissionType?: MissionType
@@ -26,12 +28,15 @@ interface AIObserverViewProps {
     imageMimeType?: string,
     missionType?: MissionType
   ) => void
+  onNavigateToOrders?: () => void
 }
 
 export const AIObserverView: React.FC<AIObserverViewProps> = ({
   initialMissionType,
   onSaveToJournal,
+  onNavigateToOrders,
 }) => {
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false)
   const [observationText, setObservationText] = useState<string>('')
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imageBase64, setImageBase64] = useState<string | null>(null)
@@ -616,6 +621,43 @@ export const AIObserverView: React.FC<AIObserverViewProps> = ({
               ))}
             </ul>
           </div>
+
+          {/* Order Verified Remediation Supplies via PayPal */}
+          {report.recommended_products && report.recommended_products.length > 0 && (
+            <div className="report-section" style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '10px', padding: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontWeight: 700, color: '#065f46', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <ShoppingBag size={18} />
+                    Verified Diagnostic & Remediation Supplies ({report.recommended_products.length} Recommended)
+                  </div>
+                  <div style={{ fontSize: '0.82rem', color: '#047857', marginTop: '0.2rem' }}>
+                    Catalogue-verified testing kits matched to your investigation hypotheses. Order in 1 click via PayPal.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setIsDrawerOpen(true)}
+                  style={{ backgroundColor: '#059669', borderColor: '#047857' }}
+                >
+                  <ShoppingBag size={16} /> View Supplies & PayPal Checkout
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Remediation Drawer Modal */}
+          {report.recommended_products && (
+            <RemediationDrawer
+              products={report.recommended_products}
+              isOpen={isDrawerOpen}
+              onClose={() => setIsDrawerOpen(false)}
+              onOrderSuccess={(_orderId, _captureId) => {
+                onNavigateToOrders?.()
+              }}
+            />
+          )}
 
           {/* Save to Field Journal */}
           <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '1.25rem', marginTop: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

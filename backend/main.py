@@ -1,51 +1,324 @@
-from fastapi import FastAPI, HTTPException
+import os
+import json
+import logging
+from typing import List, Dict, Any
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, Depends, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from sqlmodel import Session, select
+
 from schemas import FieldEvidenceInput, FieldInvestigationReport
-from investigation_graph import run_field_investigation
+from investigation_graph import run_field_investigation_async
+from catalogue_service import load_catalogue, calculate_quote, get_product_by_sku
+from models import init_db, get_session, Order, OrderItem, OrderStatus, WebhookEvent
+from paypal_client import paypal_service
+
+logger = logging.getLogger(__name__)
+
+# Enforce explicit origin whitelist (CORS Hardening)
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000"
+).split(",")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    logger.info("FieldSense AI Database initialized.")
+    yield
 
 app = FastAPI(
-    title="FieldSense AI Investigation Service",
-    description="Evidence-based field investigation engine orchestrating specialist agents via LangGraph.",
-    version="1.0.0"
+    title="FieldSense AI Agentic Platform & PayPal Commerce Engine",
+    description="Multi-agent agricultural diagnostics backed by Ollama, LangGraph, and secure PayPal v2 checkout.",
+    version="2.0.0",
+    lifespan=lifespan,
 )
 
-# Enable CORS for local Vite frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 
+# --- HEALTH ---
 @app.get("/health")
 def health_check():
     return {
         "status": "healthy",
-        "orchestrator": "LangGraph",
-        "service": "FieldSense Investigation Engine",
-        "agents": [
-            "Vision Agent",
-            "Context Agent",
-            "Knowledge Retrieval Agent",
-            "Hypothesis Agent",
-            "Field-Test Agent",
-            "Review Agent"
-        ]
+        "service": "FieldSense AI Platform",
+        "inference": "Ollama + LangGraph Multi-Agent Orchestrator",
+        "commerce": "PayPal REST API v2",
+        "database": "SQLite / SQLModel",
     }
 
+# --- 1. INVESTIGATION ---
 @app.post("/api/investigate", response_model=FieldInvestigationReport)
-def investigate_field_evidence(evidence: FieldEvidenceInput):
-    """
-    Step 2 in the 5-step architecture:
-    FastAPI receives the investigation, validates input against schemas,
-    and initializes shared state for LangGraph multi-agent coordination.
-    """
+async def investigate_field_evidence(evidence: FieldEvidenceInput):
     try:
-        report = run_field_investigation(evidence)
+        report = await run_field_investigation_async(evidence)
         return report
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Investigation workflow error: {str(e)}")
+        logger.error("Investigation error: %s", str(e))
+        raise HTTPException(status_code=500, detail="Investigation service error occurred.")
+
+# --- 2. CATALOGUE & QUOTES ---
+@app.get("/api/catalogue")
+def get_catalogue():
+    return load_catalogue()
+
+class QuoteRequestItem(BaseModel):
+    sku: str
+    quantity: int = Field(default=1, ge=1, le=100)
+
+class QuoteRequest(BaseModel):
+    items: List[QuoteRequestItem]
+
+@app.post("/api/orders/quote")
+def create_quote(req: QuoteRequest):
+    try:
+        items_dict = [item.model_dump() for item in req.items]
+        quote = calculate_quote(items_dict)
+        return quote
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("Quote calculation error: %s", str(e))
+        raise HTTPException(status_code=500, detail="Quote calculation error.")
+
+# --- 3. PAYPAL ORDER CREATION ---
+class CreateOrderRequest(BaseModel):
+    items: List[QuoteRequestItem]
+    customer_notes: str = Field(default="", max_length=500)
+
+@app.post("/api/orders/create")
+async def create_paypal_order(req: CreateOrderRequest, session: Session = Depends(get_session)):
+    """
+    1. Recalculates quote server-side (preventing client price tampering).
+    2. Persists order in database as CREATED.
+    3. Calls PayPal v2 API to create order.
+    """
+    try:
+        items_dict = [item.model_dump() for item in req.items]
+        quote = calculate_quote(items_dict)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    import uuid
+    client_ref = f"fs-ord-{uuid.uuid4().hex[:10]}"
+
+    db_order = Order(
+        client_order_ref=client_ref,
+        status=OrderStatus.CREATED,
+        currency=quote["currency"],
+        subtotal=quote["subtotal"],
+        shipping=quote["shipping"],
+        tax=quote["tax"],
+        total_amount=quote["total"],
+        customer_notes=req.customer_notes,
+    )
+    session.add(db_order)
+    session.commit()
+    session.refresh(db_order)
+
+    # Persist OrderItems
+    for it in quote["items"]:
+        db_item = OrderItem(
+            order_id=db_order.id,
+            sku=it["sku"],
+            title=it["title"],
+            unit_price=it["unit_price"],
+            quantity=it["quantity"],
+            total_price=it["total_price"],
+        )
+        session.add(db_item)
+    session.commit()
+
+    # Call PayPal
+    try:
+        paypal_res = await paypal_service.create_order(quote, custom_reference=client_ref)
+        paypal_order_id = paypal_res["id"]
+        db_order.paypal_order_id = paypal_order_id
+        session.add(db_order)
+        session.commit()
+    except Exception as e:
+        logger.error("PayPal Order creation failed: %s", str(e))
+        db_order.status = OrderStatus.FAILED
+        session.add(db_order)
+        session.commit()
+        raise HTTPException(status_code=502, detail="PayPal order creation failed.")
+
+    return {
+        "order_id": db_order.id,
+        "client_order_ref": db_order.client_order_ref,
+        "paypal_order_id": paypal_order_id,
+        "status": db_order.status,
+        "total": db_order.total_amount,
+        "currency": db_order.currency,
+        "paypal_links": paypal_res.get("links", []),
+    }
+
+# --- 4. PAYPAL ORDER CAPTURE ---
+class CaptureRequest(BaseModel):
+    paypal_order_id: str
+
+@app.post("/api/orders/{order_id}/capture")
+async def capture_paypal_order(
+    order_id: int,
+    req: CaptureRequest,
+    session: Session = Depends(get_session)
+):
+    """
+    Server-authoritative capture.
+    Idempotent: if order is already COMPLETED, returns cached response.
+    """
+    statement = select(Order).where(Order.id == order_id)
+    order = session.exec(statement).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found.")
+
+    if order.status == OrderStatus.COMPLETED:
+        return {
+            "order_id": order.id,
+            "status": order.status,
+            "paypal_capture_id": order.paypal_capture_id,
+            "message": "Order already captured (idempotent response).",
+        }
+
+    try:
+        capture_res = await paypal_service.capture_order(req.paypal_order_id)
+    except Exception as e:
+        logger.error("PayPal capture call failed: %s", str(e))
+        raise HTTPException(status_code=502, detail="Failed to capture PayPal payment.")
+
+    capture_status = capture_res.get("status")
+    if capture_status == "COMPLETED":
+        captures = (
+            capture_res.get("purchase_units", [{}])[0]
+            .get("payments", {})
+            .get("captures", [])
+        )
+        capture_id = captures[0].get("id") if captures else "CAP-VERIFIED"
+
+        order.status = OrderStatus.COMPLETED
+        order.paypal_capture_id = capture_id
+        session.add(order)
+        session.commit()
+        session.refresh(order)
+
+        return {
+            "order_id": order.id,
+            "status": order.status,
+            "paypal_capture_id": order.paypal_capture_id,
+            "total_amount": order.total_amount,
+            "currency": order.currency,
+        }
+    else:
+        order.status = OrderStatus.FAILED
+        session.add(order)
+        session.commit()
+        raise HTTPException(status_code=400, detail=f"Capture not completed: {capture_status}")
+
+# --- 5. ORDERS HISTORY ---
+@app.get("/api/orders")
+def list_orders(session: Session = Depends(get_session)):
+    orders = session.exec(select(Order).order_by(Order.created_at.desc())).all()
+    results = []
+    for ord in orders:
+        items = session.exec(select(OrderItem).where(OrderItem.order_id == ord.id)).all()
+        results.append({
+            "id": ord.id,
+            "client_order_ref": ord.client_order_ref,
+            "paypal_order_id": ord.paypal_order_id,
+            "paypal_capture_id": ord.paypal_capture_id,
+            "status": ord.status,
+            "currency": ord.currency,
+            "subtotal": ord.subtotal,
+            "shipping": ord.shipping,
+            "tax": ord.tax,
+            "total_amount": ord.total_amount,
+            "created_at": ord.created_at.isoformat(),
+            "items": [
+                {
+                    "sku": it.sku,
+                    "title": it.title,
+                    "unit_price": it.unit_price,
+                    "quantity": it.quantity,
+                    "total_price": it.total_price,
+                }
+                for it in items
+            ]
+        })
+    return results
+
+# --- 6. PAYPAL WEBHOOK INGESTION ---
+@app.post("/api/payments/webhook")
+async def paypal_webhook_handler(
+    request: Request,
+    session: Session = Depends(get_session),
+    paypal_transmission_id: str = Header(None),
+    paypal_transmission_time: str = Header(None),
+    paypal_cert_url: str = Header(None),
+    paypal_auth_algo: str = Header(None),
+    paypal_transmission_sig: str = Header(None),
+):
+    raw_body = (await request.body()).decode("utf-8")
+
+    # 1. Cryptographic Signature Verification
+    is_valid = await paypal_service.verify_webhook_signature(
+        transmission_id=paypal_transmission_id or "",
+        transmission_time=paypal_transmission_time or "",
+        cert_url=paypal_cert_url or "",
+        auth_algo=paypal_auth_algo or "",
+        transmission_sig=paypal_transmission_sig or "",
+        raw_body=raw_body,
+    )
+
+    if not is_valid:
+        logger.warning("PayPal Webhook signature verification failed.")
+        raise HTTPException(status_code=400, detail="Invalid webhook signature.")
+
+    try:
+        event = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Malformed JSON.")
+
+    event_id = event.get("id")
+    event_type = event.get("event_type")
+    resource = event.get("resource", {})
+
+    # 2. Idempotency Check
+    existing = session.exec(select(WebhookEvent).where(WebhookEvent.event_id == event_id)).first()
+    if existing:
+        logger.info("Duplicate webhook event %s received. Returning idempotent 200 OK.", event_id)
+        return {"status": "already_processed", "event_id": event_id}
+
+    # Record webhook
+    wh_record = WebhookEvent(
+        event_id=event_id,
+        event_type=event_type,
+        resource_id=resource.get("id"),
+        status="PROCESSED",
+        payload_json=raw_body,
+    )
+    session.add(wh_record)
+
+    # 3. Handle Events
+    if event_type == "PAYMENT.CAPTURE.COMPLETED":
+        custom_id = resource.get("custom_id")
+        capture_id = resource.get("id")
+        if custom_id:
+            ord = session.exec(select(Order).where(Order.client_order_ref == custom_id)).first()
+            if ord and ord.status != OrderStatus.COMPLETED:
+                ord.status = OrderStatus.COMPLETED
+                ord.paypal_capture_id = capture_id
+                session.add(ord)
+
+    session.commit()
+    return {"status": "success", "event_id": event_id}
 
 if __name__ == "__main__":
     import uvicorn

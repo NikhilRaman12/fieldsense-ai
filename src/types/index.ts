@@ -53,12 +53,59 @@ export interface SpecialistAgentContribution {
 }
 
 export interface FieldContextData {
-  affectedParts?: string // e.g. "Lower older leaves only", "New terminal shoots", "Whole branch"
-  symptomPattern?: string // e.g. "Interveinal chlorosis", "Stippled spots", "Uniform pale yellowing", "Marginal scorched edges"
-  soilMoisture?: string // e.g. "Saturated/waterlogged", "Bone dry cracked", "Evenly moist organic loam"
-  recentWeather?: string // e.g. "Prolonged heavy rainfall", "Recent heatwave / intense sun", "Sudden cold snap / frost", "Normal temperate"
-  spreadExtent?: string // e.g. "Isolated single plant", "Spreading cluster along row", "All adjacent species affected"
-  habitatContext?: string // e.g. "Vegetable garden plot", "Orchard / woodland edge", "Container patio pot", "Wild meadow"
+  affectedParts?: string
+  symptomPattern?: string
+  soilMoisture?: string
+  recentWeather?: string
+  spreadExtent?: string
+  habitatContext?: string
+}
+
+export interface RecommendedProduct {
+  sku: string
+  title: string
+  description: string
+  category: string
+  price: number
+  currency: string
+  target_hypotheses?: string[]
+}
+
+export interface OrderQuote {
+  items: Array<{
+    sku: string
+    title: string
+    unit_price: number
+    quantity: number
+    total_price: number
+    currency: string
+  }>
+  subtotal: number
+  shipping: number
+  tax: number
+  total: number
+  currency: string
+}
+
+export interface OrderRecord {
+  id: number
+  client_order_ref: string
+  paypal_order_id?: string
+  paypal_capture_id?: string
+  status: 'DRAFT' | 'CREATED' | 'APPROVED' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
+  currency: string
+  subtotal: number
+  shipping: number
+  tax: number
+  total_amount: number
+  created_at: string
+  items: Array<{
+    sku: string
+    title: string
+    unit_price: number
+    quantity: number
+    total_price: number
+  }>
 }
 
 export interface ObservationReport {
@@ -73,7 +120,6 @@ export interface ObservationReport {
     observedEvidence: string[]
     inferredHypotheses: string[]
   }
-  // Multi-agent investigative workflow additions
   fieldContext?: FieldContextData
   specialistAgents?: SpecialistAgentContribution[]
   competingHypotheses?: CompetingHypothesis[]
@@ -91,21 +137,22 @@ export interface ObservationReport {
     passage: string
     scientificKey: string
   }>
+  recommended_products?: RecommendedProduct[]
   moreEvidenceNeeded?: boolean
   clarifyingQuestionForUser?: string
-  sourceMode: 'langgraph_fastapi' | 'ollama' | 'offline_guided'
+  sourceMode: 'langgraph_fastapi' | 'ollama' | 'offline_guided' | 'ollama_inference'
   modelUsed?: string
   generatedAt: string
 }
 
 export interface JournalEntry {
   id?: number
-  timestamp: string // ISO string
+  timestamp: string
   missionType?: MissionType
   missionTitle?: string
   notes: string
-  imageBlobUrl?: string // for display
-  imageDataBase64?: string // for offline persistence
+  imageBlobUrl?: string
+  imageDataBase64?: string
   imageMimeType?: string
   report: ObservationReport
   userReflection?: string

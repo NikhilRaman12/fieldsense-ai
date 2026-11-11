@@ -1,5 +1,5 @@
 import type { ObservationInput } from './aiProvider'
-import type { ObservationReport } from '../types'
+import type { ObservationReport, OrderQuote, OrderRecord, RecommendedProduct } from '../types'
 
 const FASTAPI_BASE_URL = 'http://127.0.0.1:8000'
 
@@ -11,12 +11,69 @@ export async function checkFastAPIHealth(): Promise<{ isReachable: boolean; orch
     clearTimeout(timeout)
     if (res.ok) {
       const data = await res.json()
-      return { isReachable: true, orchestrator: data.orchestrator || 'LangGraph' }
+      return { isReachable: true, orchestrator: data.service || 'FieldSense AI Platform' }
     }
     return { isReachable: false }
   } catch {
     return { isReachable: false }
   }
+}
+
+export async function fetchCatalogue(): Promise<RecommendedProduct[]> {
+  const res = await fetch(`${FASTAPI_BASE_URL}/api/catalogue`)
+  if (!res.ok) throw new Error('Failed to fetch product catalogue')
+  return res.json()
+}
+
+export async function fetchQuote(items: Array<{ sku: string; quantity: number }>): Promise<OrderQuote> {
+  const res = await fetch(`${FASTAPI_BASE_URL}/api/orders/quote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Quote calculation failed')
+  }
+  return res.json()
+}
+
+export async function createBackendPayPalOrder(
+  items: Array<{ sku: string; quantity: number }>,
+  customerNotes?: string
+): Promise<{ order_id: number; paypal_order_id: string; total: number; currency: string }> {
+  const res = await fetch(`${FASTAPI_BASE_URL}/api/orders/create`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items, customer_notes: customerNotes || '' }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to create PayPal order')
+  }
+  return res.json()
+}
+
+export async function captureBackendPayPalOrder(
+  orderId: number,
+  paypalOrderId: string
+): Promise<{ order_id: number; status: string; paypal_capture_id: string; total_amount: number }> {
+  const res = await fetch(`${FASTAPI_BASE_URL}/api/orders/${orderId}/capture`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ paypal_order_id: paypalOrderId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to capture PayPal order')
+  }
+  return res.json()
+}
+
+export async function fetchOrdersHistory(): Promise<OrderRecord[]> {
+  const res = await fetch(`${FASTAPI_BASE_URL}/api/orders`)
+  if (!res.ok) throw new Error('Failed to fetch orders history')
+  return res.json()
 }
 
 export async function runFastAPILangGraphInvestigation(
@@ -26,17 +83,17 @@ export async function runFastAPILangGraphInvestigation(
   const payload = {
     observation_text: input.observationText,
     image_base64: input.imageBase64 || null,
-    affected_parts: input.fieldContext?.affectedParts || 'Lower older leaves near base',
-    symptom_pattern: input.fieldContext?.symptomPattern || 'Interveinal chlorosis',
-    soil_moisture: input.fieldContext?.soilMoisture || 'Saturated / waterlogged',
-    recent_weather: input.fieldContext?.recentWeather || 'Prolonged overcast rain followed by sudden heat',
-    spread_extent: input.fieldContext?.spreadExtent || 'Isolated single plant',
-    habitat_context: input.fieldContext?.habitatContext || 'Garden vegetable bed',
+    affected_parts: input.fieldContext?.affectedParts || null,
+    symptom_pattern: input.fieldContext?.symptomPattern || null,
+    soil_moisture: input.fieldContext?.soilMoisture || null,
+    recent_weather: input.fieldContext?.recentWeather || null,
+    spread_extent: input.fieldContext?.spreadExtent || null,
+    habitat_context: input.fieldContext?.habitatContext || null,
     user_answered_questions: userAnsweredQuestions || {},
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 25000)
+  const timeout = setTimeout(() => controller.abort(), 45000)
 
   const response = await fetch(`${FASTAPI_BASE_URL}/api/investigate`, {
     method: 'POST',
@@ -47,12 +104,11 @@ export async function runFastAPILangGraphInvestigation(
   clearTimeout(timeout)
 
   if (!response.ok) {
-    throw new Error(`FastAPI LangGraph service error: ${response.status} ${response.statusText}`)
+    throw new Error(`FastAPI Investigation error: ${response.status} ${response.statusText}`)
   }
 
   const data = await response.json()
 
-  // Map to ObservationReport
   return {
     summary: data.summary,
     visibleCharacteristics: data.observed_facts || [],
@@ -62,11 +118,11 @@ export async function runFastAPILangGraphInvestigation(
       .map((h: any) => h.name),
     uncertainty: {
       rating: data.system_confidence || 'moderate',
-      explanation: data.confidence_rationale || 'Coordinated multi-agent evaluation requires further field validation.',
+      explanation: data.confidence_rationale || 'Multi-agent evaluation requires further field validation.',
     },
     nextObservation: data.discriminating_tests?.[0]?.recommended_action || 'Inspect leaf undersides and soil core.',
     safetyConsiderations: [
-      'Do not apply chemical pesticides or fertilizer until root cause is differentiated.',
+      'Do not apply chemical pesticides or synthetic fertilizer until root cause is differentiated.',
       'Leave specimen and surrounding habitat intact.',
     ],
     distinctionEvidenceVsInference: {
@@ -76,59 +132,6 @@ export async function runFastAPILangGraphInvestigation(
       ),
     },
     fieldContext: input.fieldContext,
-    specialistAgents: [
-      {
-        agentName: 'Vision Agent',
-        role: 'Physical morphological observation',
-        focusArea: 'Visible symptoms and tissue presentation',
-        status: 'completed',
-        findings: data.observed_facts || [],
-        suggestedDiscriminatingTest: 'Inspect secondary vein patterns with 10x magnification',
-      },
-      {
-        agentName: 'Context Agent',
-        role: 'Agronomic and environmental context integrator',
-        focusArea: 'Soil moisture, recent weather, and spread',
-        status: 'completed',
-        findings: data.context_facts || [],
-        suggestedDiscriminatingTest: 'Perform soil ribbon roll test 10cm deep',
-      },
-      {
-        agentName: 'Knowledge Retrieval Agent',
-        role: 'Scientific literature & index retrieval',
-        focusArea: 'Plant physiology, vascular wilts, and hypoxia',
-        status: 'completed',
-        findings: (data.retrieved_knowledge || []).map((k: any) => `[${k.id}] ${k.topic}: ${k.scientificKey}`),
-        suggestedDiscriminatingTest: 'Verify with physiological literature key',
-      },
-      {
-        agentName: 'Hypothesis Agent',
-        role: 'Competing explanations generator',
-        focusArea: 'Nutrient translocation, root anoxia, and wilt pathogens',
-        status: 'completed',
-        findings: (data.competing_hypotheses || []).map((h: any) => `${h.name} [${h.plausibility}]`),
-        suggestedDiscriminatingTest: 'Formulate discriminating field tests',
-      },
-      {
-        agentName: 'Field-Test Agent',
-        role: 'Discriminating action designer',
-        focusArea: 'Safe physical tests to separate hypotheses',
-        status: 'completed',
-        findings: (data.discriminating_tests || []).map((t: any) => `${t.target_hypotheses} -> ${t.recommended_action}`),
-        suggestedDiscriminatingTest: data.discriminating_tests?.[0]?.recommended_action || '',
-      },
-      {
-        agentName: 'Review Agent',
-        role: 'Evidence sufficiency & confidence gatekeeper',
-        focusArea: 'Decision: Is more evidence needed?',
-        status: 'completed',
-        findings: [
-          `Evidence sufficiency: ${!data.more_evidence_needed ? 'Sufficient' : 'Requires further clue'}`,
-          `Confidence: ${data.system_confidence}`,
-        ],
-        suggestedDiscriminatingTest: data.clarifying_question_for_user || 'Evidence sufficient for structured report',
-      },
-    ],
     competingHypotheses: (data.competing_hypotheses || []).map((h: any) => ({
       id: h.id,
       name: h.name,
@@ -145,10 +148,11 @@ export async function runFastAPILangGraphInvestigation(
     })),
     whatRemainsUnknown: data.what_remains_unknown || [],
     retrievedKnowledge: data.retrieved_knowledge || [],
+    recommended_products: data.recommended_products || [],
     moreEvidenceNeeded: data.more_evidence_needed,
     clarifyingQuestionForUser: data.clarifying_question_for_user,
-    sourceMode: 'langgraph_fastapi',
-    modelUsed: 'FastAPI + LangGraph Multi-Agent Orchestrator',
+    sourceMode: data.source_mode || 'langgraph_fastapi',
+    modelUsed: data.model_used || 'Ollama + LangGraph Multi-Agent Orchestrator',
     generatedAt: new Date().toISOString(),
   }
 }

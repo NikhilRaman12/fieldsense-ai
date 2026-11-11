@@ -8,12 +8,14 @@ import {
   Leaf,
   Wifi,
   WifiOff,
+  ShoppingBag,
 } from 'lucide-react'
 import { MissionView } from './components/MissionView'
 import { AIObserverView } from './components/AIObserverView'
 import { FieldJournalView } from './components/FieldJournalView'
 import { ScorecardView } from './components/ScorecardView'
 import { SettingsView } from './components/SettingsView'
+import { OrdersHistoryView } from './components/OrdersHistoryView'
 import {
   getAllJournalEntries,
   saveJournalEntry,
@@ -29,7 +31,7 @@ import type {
   OllamaHealthStatus,
 } from './types'
 
-type ActiveTab = 'mission' | 'observer' | 'journal' | 'scorecard' | 'settings'
+type ActiveTab = 'mission' | 'observer' | 'journal' | 'scorecard' | 'orders' | 'settings'
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('mission')
@@ -66,43 +68,55 @@ export const App: React.FC = () => {
   useEffect(() => {
     loadData()
     checkOllama()
+    const interval = setInterval(checkOllama, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const handleCompleteMission = async (
     mission: MissionDefinition,
     actualMinutes: number,
-    reflectionText: string
+    reflectionNotes?: string
   ) => {
     const newEntry: Omit<JournalEntry, 'id'> = {
       timestamp: new Date().toISOString(),
       missionType: mission.type,
       missionTitle: mission.title,
+      notes: `Outdoor Session: ${mission.title} completed in ${actualMinutes} minutes.`,
+      userReflection: reflectionNotes,
       durationMinutes: actualMinutes,
-      notes: `Completed outdoor field mission: ${mission.title}.`,
-      userReflection: reflectionText.trim() || undefined,
       report: {
         summary: `Completed ${mission.title} field session (${actualMinutes} min)`,
         visibleCharacteristics: mission.tasks.map((t) => t.instruction),
         possibleInterpretations: ['Self-guided natural discovery and habitat engagement'],
-        alternativeExplanations: ['Natural phenomena vary widely across weather conditions and season'],
+        alternativeExplanations: [],
         uncertainty: {
           rating: 'low',
-          explanation: 'Empirical user observation logged locally without speculative remote inference.',
+          explanation: 'Direct physical participation logged outdoors.',
         },
-        nextObservation: 'Return to this habitat in 7–14 days to observe seasonal shifts.',
+        nextObservation: mission.recordingTip,
         safetyConsiderations: [mission.safetyReminder],
         distinctionEvidenceVsInference: {
           observedEvidence: mission.tasks.map((t) => t.instruction),
-          inferredHypotheses: ['Outdoor observational engagement logged by user'],
+          inferredHypotheses: ['Direct physical participation logged outdoors'],
         },
         sourceMode: 'offline_guided',
+        modelUsed: 'Field Mission Guide',
         generatedAt: new Date().toISOString(),
       },
     }
 
-    await saveJournalEntry(newEntry)
-    await loadData()
-    setActiveTab('scorecard')
+    try {
+      await saveJournalEntry(newEntry)
+      await loadData()
+      setActiveTab('scorecard')
+    } catch (err) {
+      console.error('Failed to save mission to journal:', err)
+    }
+  }
+
+  const handleNavigateToObserver = (missionType?: MissionType) => {
+    setPendingObserverMissionType(missionType)
+    setActiveTab('observer')
   }
 
   const handleSaveObservationToJournal = async (
@@ -115,58 +129,58 @@ export const App: React.FC = () => {
     const newEntry: Omit<JournalEntry, 'id'> = {
       timestamp: new Date().toISOString(),
       missionType,
-      missionTitle: missionType ? missionType.replace('_', ' ').toUpperCase() : 'Natural Observation',
-      notes: notes || 'Field observation record',
+      notes,
       imageDataBase64: imageBase64,
-      imageMimeType: imageMimeType,
+      imageMimeType,
       report,
     }
 
-    await saveJournalEntry(newEntry)
-    await loadData()
-  }
-
-  const handleNavigateToObserver = (missionType?: MissionType) => {
-    setPendingObserverMissionType(missionType)
-    setActiveTab('observer')
+    try {
+      await saveJournalEntry(newEntry)
+      await loadData()
+    } catch (err) {
+      console.error('Failed to save observation to journal:', err)
+    }
   }
 
   return (
-    <div className="app-layout">
+    <div className="app-shell">
       {/* Header */}
       <header className="app-header">
-        <div className="brand-wrapper">
-          <Leaf className="brand-logo-icon" />
-          <div className="brand-text-block">
-            <h1>FieldSense AI</h1>
-            <span className="brand-tagline">
-              Step outside. Observe deeply. Let AI guide the discovery—not replace it.
-            </span>
+        <div className="header-brand">
+          <div className="brand-logo">
+            <Leaf size={22} color="#ffffff" />
+          </div>
+          <div className="brand-titles">
+            <h1 className="brand-name">FieldSense AI</h1>
+            <p className="brand-tagline">Observe Deeply • Verified Remediation via PayPal</p>
           </div>
         </div>
 
-        <div>
-          {ollamaOnline ? (
-            <span className="header-status-badge" title="Local Ollama runtime is reachable">
-              <span className="status-dot online"></span>
-              <Wifi size={12} /> Local AI Online
-            </span>
-          ) : (
-            <span
-              className="header-status-badge"
-              title="Local Ollama is offline — guided rule mode active"
-              onClick={() => setActiveTab('settings')}
-              style={{ cursor: 'pointer' }}
-            >
-              <span className="status-dot offline"></span>
-              <WifiOff size={12} /> Guided Mode
-            </span>
-          )}
+        <div className="header-actions">
+          <button
+            type="button"
+            className="ai-status-indicator"
+            onClick={() => setActiveTab('settings')}
+            title={ollamaOnline ? 'Local open-weight AI connected' : 'Guided Investigation mode'}
+          >
+            {ollamaOnline ? (
+              <>
+                <Wifi size={14} style={{ color: 'var(--color-forest)' }} />
+                <span className="status-text online">Local AI Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff size={14} style={{ color: 'var(--color-sage)' }} />
+                <span className="status-text offline">Guided Mode</span>
+              </>
+            )}
+          </button>
         </div>
       </header>
 
-      {/* Navigation Bar */}
-      <nav className="app-nav" aria-label="Main Navigation">
+      {/* Navigation Tabs */}
+      <nav className="nav-tabs-bar" role="tablist">
         <button
           type="button"
           className={`nav-tab-btn ${activeTab === 'mission' ? 'active' : ''}`}
@@ -179,7 +193,10 @@ export const App: React.FC = () => {
         <button
           type="button"
           className={`nav-tab-btn ${activeTab === 'observer' ? 'active' : ''}`}
-          onClick={() => setActiveTab('observer')}
+          onClick={() => {
+            setPendingObserverMissionType(undefined)
+            setActiveTab('observer')
+          }}
         >
           <Eye className="nav-icon" />
           <span>AI Observer</span>
@@ -211,6 +228,15 @@ export const App: React.FC = () => {
 
         <button
           type="button"
+          className={`nav-tab-btn ${activeTab === 'orders' ? 'active' : ''}`}
+          onClick={() => setActiveTab('orders')}
+        >
+          <ShoppingBag className="nav-icon" />
+          <span>Field Supplies</span>
+        </button>
+
+        <button
+          type="button"
           className={`nav-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
           onClick={() => setActiveTab('settings')}
         >
@@ -232,6 +258,7 @@ export const App: React.FC = () => {
           <AIObserverView
             initialMissionType={pendingObserverMissionType}
             onSaveToJournal={handleSaveObservationToJournal}
+            onNavigateToOrders={() => setActiveTab('orders')}
           />
         )}
 
@@ -245,6 +272,10 @@ export const App: React.FC = () => {
             entries={entries}
             onStartNewMission={() => setActiveTab('mission')}
           />
+        )}
+
+        {activeTab === 'orders' && (
+          <OrdersHistoryView />
         )}
 
         {activeTab === 'settings' && (
