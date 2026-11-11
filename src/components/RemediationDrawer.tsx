@@ -23,6 +23,10 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successInfo, setSuccessInfo] = useState<{ orderId: number; captureId: string } | null>(null)
 
+  // Track the single pending order for this checkout session
+  const [currentCreatedOrderId, setCurrentCreatedOrderId] = useState<number | null>(null)
+  const [currentPayPalOrderId, setCurrentPayPalOrderId] = useState<string | null>(null)
+
   // Initialize first product selected with qty 1
   useEffect(() => {
     if (products.length > 0 && Object.keys(selectedQuantities).length === 0) {
@@ -38,11 +42,16 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
 
     if (activeItems.length === 0) {
       setQuote(null)
+      setCurrentCreatedOrderId(null)
+      setCurrentPayPalOrderId(null)
       return
     }
 
     setIsLoadingQuote(true)
     setErrorMsg(null)
+    setCurrentCreatedOrderId(null)
+    setCurrentPayPalOrderId(null)
+
     fetchQuote(activeItems)
       .then((q) => setQuote(q))
       .catch((err) => setErrorMsg(err.message || 'Error updating quote'))
@@ -58,6 +67,8 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
   }
 
   if (!isOpen) return null
+
+  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test'
 
   return (
     <div className="cart-modal-overlay" style={{
@@ -206,7 +217,7 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
                   <span>Server-Validated Pricing & Secure PayPal Capture</span>
                 </div>
 
-                <PayPalScriptProvider options={{ clientId: 'test', currency: quote.currency }}>
+                <PayPalScriptProvider options={{ clientId: paypalClientId, currency: quote.currency }}>
                   <PayPalButtons
                     style={{ layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' }}
                     createOrder={async () => {
@@ -214,22 +225,33 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
                         .filter(([_, qty]) => qty > 0)
                         .map(([sku, quantity]) => ({ sku, quantity }))
 
+                      // Create exactly ONE local order and one PayPal order
                       const result = await createBackendPayPalOrder(activeItems)
+                      setCurrentCreatedOrderId(result.order_id)
+                      setCurrentPayPalOrderId(result.paypal_order_id)
                       return result.paypal_order_id
                     }}
                     onApprove={async (data) => {
-                      const activeItems = Object.entries(selectedQuantities)
-                        .filter(([_, qty]) => qty > 0)
-                        .map(([sku, quantity]) => ({ sku, quantity }))
+                      try {
+                        const targetOrderId = currentCreatedOrderId
+                        const targetPayPalOrderId = data.orderID || currentPayPalOrderId
 
-                      // Create server order record first
-                      const createRes = await createBackendPayPalOrder(activeItems)
-                      // Capture server-to-server
-                      const capRes = await captureBackendPayPalOrder(createRes.order_id, data.orderID)
-                      setSuccessInfo({ orderId: capRes.order_id, captureId: capRes.paypal_capture_id })
+                        if (!targetOrderId || !targetPayPalOrderId) {
+                          throw new Error('Order identification lost during checkout. Please try again.')
+                        }
+
+                        // Capture the EXACT order created during createOrder - never re-create
+                        const capRes = await captureBackendPayPalOrder(targetOrderId, targetPayPalOrderId)
+                        setSuccessInfo({ orderId: capRes.order_id, captureId: capRes.paypal_capture_id })
+                      } catch (err: any) {
+                        setErrorMsg(err.message || 'Payment capture failed.')
+                      }
+                    }}
+                    onCancel={() => {
+                      setErrorMsg('PayPal checkout was cancelled by the buyer.')
                     }}
                     onError={(_err) => {
-                      setErrorMsg('PayPal checkout was cancelled or encountered an error.')
+                      setErrorMsg('PayPal checkout encountered an error. Please verify gateway settings.')
                     }}
                   />
                 </PayPalScriptProvider>

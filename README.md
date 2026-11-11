@@ -1,102 +1,86 @@
-# 🌿 FieldSense AI
+# 🌿 FieldSense Commerce AI
 
-**Step outside. Observe deeply. Let AI guide the discovery—not replace it.**
-
-> *A genuinely useful, fully open-source field-science application that encourages people to leave their screens, explore the outdoors, observe nature, and record discoveries. The actual outdoor activity is the main experience; the AI supports it rather than replace it.*
+**Step outside. Observe deeply. Act with confidence.**  
+*An evidence-based agricultural intelligence and commerce platform for the PayPal AI Hackathon.*
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.41-FF4B4B?logo=streamlit)](https://streamlit.io/)
+[![React 19](https://img.shields.io/badge/React-19.2-blue?logo=react)](https://react.dev/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![PayPal](https://img.shields.io/badge/PayPal-REST%20v2%20Checkout-003087?logo=paypal)](https://developer.paypal.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.6-orange)](https://langchain-ai.github.io/langgraph/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688)](https://fastapi.tiangolo.com/)
-[![Ollama](https://img.shields.io/badge/Ollama-local%20AI-purple)](https://ollama.com/)
+[![Ollama](https://img.shields.io/badge/Ollama-Local%20AI-purple)](https://ollama.com/)
 
 ---
 
-## ⚡ Free 1-Click Deployment (Streamlit Community Cloud)
+## 🎯 What FieldSense Commerce AI Does
 
-You can deploy FieldSense AI for free in 30 seconds on **[Streamlit Community Cloud](https://share.streamlit.io/)**:
-1. Fork or open repository: `https://github.com/NikhilRaman12/fieldsense-ai`
-2. Go to **[share.streamlit.io](https://share.streamlit.io/)** and click **New app**.
-3. Select this repository, branch `main`, and main file path `app.py`.
-4. Click **Deploy!** — Your public demo link will be live at `https://fieldsense-ai.streamlit.app`!
+Traditional plant diagnosis apps often jump to premature, high-confidence classifications from an isolated photo, frequently advising growers to immediately buy synthetic chemicals.
 
-
-## 🎯 What FieldSense Does
-
-A user visits a garden, farm, park, or natural habitat and **collects field observations**. The AI coordinates 6 specialist agents to investigate possible explanations, identify missing evidence, and recommend the next *physical outdoor test*—not jump straight to a diagnosis.
-
-**Example:** A user notices yellowing leaves on a plant. Rather than declaring a nutrient deficiency from one photograph, FieldSense asks about the pattern, affected leaves, soil moisture, and recent weather. It then separates observed evidence from competing hypotheses.
-
-### The 5-Step Investigation Workflow
-
-```
-1. User provides field evidence
-   → Plant photo + symptoms + growing conditions
-
-2. FastAPI receives the investigation
-   → Validates input, initializes shared LangGraph state
-
-3. LangGraph orchestrates 6 specialist agents
-   → Vision Agent:      What is visible?
-   → Context Agent:     What else do we know?
-   → Knowledge Agent:   What do sources say?
-   → Hypothesis Agent:  What could explain it?
-   → Field-Test Agent:  What should we check?
-   → Review Agent:      Is the evidence sufficient?
-   Decision: Needs more evidence? → Ask user → Resume
-             Sufficient? → Synthesize report
-
-4. Structured Field Investigation Report
-   → Observed facts · Competing hypotheses · Evidence matrix
-   → Uncertainty score · Next safe field test
-
-5. User saves report to local Field Journal
-   → IndexedDB persistence, offline-first
-```
+**FieldSense AI flips this paradigm:**
+1. **Multi-Agent Investigation**: Rather than guessing from a single snapshot, the AI investigates multiple competing hypotheses across plant pathology, root agronomy, and micro-climate conditions.
+2. **Prescribed Physical Tests**: Directs users outdoors to perform physical checks (soil ribbon tests, root core smell checks, cambium scrapes) to separate competing causes.
+3. **Grounded Catalogue Procurement**: Directly connects diagnostic hypotheses to server-verified remediation and testing supplies.
+4. **Server-Authoritative PayPal Checkout**: Enforces server pricing authority, order binding, cryptographic capture validation, and idempotent webhook reconciliation via PayPal REST API v2.
 
 ---
 
-## 🤖 Open AI Stack
-
-| Component | Role | Notes |
-|-----------|------|-------|
-| **Gemma 3** (via Ollama) | Primary reasoning model | Runs 100% locally on CPU/GPU |
-| **Ollama** | Local model runtime | `ollama pull gemma3` |
-| **LangGraph** | Multi-agent orchestration | 6 specialist agents in sequence |
-| **FastAPI** | Backend API gateway | Validates inputs, coordinates agents |
-
-### 3-Tier Fallback (Honesty by Design)
+## 🏗️ System Architecture
 
 ```
-TIER 1: FastAPI + LangGraph  (port 8000 running)
-  └─ 6 specialist agents with scientific knowledge index
-TIER 2: Ollama + Gemma 3     (Ollama daemon running)
-  └─ Open-weight LLM with structured JSON prompt
-TIER 3: Offline Rule Engine  (ALWAYS available)
-  └─ Deterministic botanical heuristics — NOT an LLM.
-     Clearly labeled "Guided Mode" in UI.
-     We NEVER pretend rule-based output came from an AI.
+┌────────────────────────────────────────────────────────────────────────┐
+│                        FieldSense Client Layer                         │
+│                                                                        │
+│   ┌─────────────────────┐   ┌──────────────────────────────────────┐   │
+│   │  React 19 + Vite    │   │      @paypal/react-paypal-js         │   │
+│   │  • Field Missions   │   │      • PayPal Smart Payment Buttons  │   │
+│   │  • AI Observer View │   │      • In-Context Remediation Drawer │   │
+│   │  • Field Journal    │   │      • Orders History & Receipts     │   │
+│   └──────────┬──────────┘   └──────────────────┬───────────────────┘   │
+└──────────────┼─────────────────────────────────┼───────────────────────┘
+               │                                 │
+               ▼                                 ▼
+┌────────────────────────────────────────────────────────────────────────┐
+│                        FastAPI Core Backend                            │
+│                                                                        │
+│   ┌─────────────────────┐   ┌─────────────────────┐   ┌────────────┐   │
+│   │ InvestigationEngine │   │   CatalogueService  │   │OrderManager│   │
+│   │ • Ollama multimodal │   │ • catalogue.json    │   │• SQLite    │   │
+│   │ • LangGraph State   │   │ • Quote calculator  │   │• SQLModel  │   │
+│   └──────────┬──────────┘   └──────────┬──────────┘   └──────┬─────┘   │
+│              │                         │                     │         │
+│              ▼                         ▼                     ▼         │
+│   ┌────────────────────────────────────────────────────────────────┐   │
+│   │                    PayPalClient Adapter                        │   │
+│   │ • Server-to-server OAuth2 & /v2/checkout/orders                │   │
+│   │ • Strict capture validation (amount, currency, order binding)   │   │
+│   │ • Cryptographic webhook verification & idempotency             │   │
+│   └────────────────────────────────┬───────────────────────────────┘   │
+└────────────────────────────────────┼───────────────────────────────────┘
+                                     │
+                                     ▼
+                      PayPal REST API v2 (Sandbox)
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start Guide
 
 ### Prerequisites
+- **Node.js** $\ge 18$
+- **Python** $\ge 3.10$
+- **Ollama** (Optional for local AI models like `gemma` or `llama3.1`; transparent offline fallback activates if unavailable)
 
-- **Node.js** ≥ 18
-- **Python** ≥ 3.10
-- **Ollama** — [download from ollama.com](https://ollama.com)
-
-### 1. Clone the Repository
-
+### 1. Clone & Configure Environment
 ```bash
 git clone https://github.com/NikhilRaman12/fieldsense-ai.git
 cd fieldsense-ai
+
+# Copy environment template
+cp .env.example .env
 ```
+Fill in your PayPal Sandbox credentials in `.env` (obtainable at [developer.paypal.com](https://developer.paypal.com/dashboard/applications/sandbox)).
 
-### 2. Start the Backend (FastAPI + LangGraph)
-
+### 2. Start the FastAPI Backend
 ```bash
 cd backend
 pip install -r requirements.txt
@@ -104,99 +88,55 @@ python main.py
 # → Listening at http://127.0.0.1:8000
 ```
 
-### 3. Start the Frontend (React + Vite)
-
+### 3. Start the React Frontend
 ```bash
-cd ..
+# In the repository root
 npm install
 npm run dev
 # → Open http://localhost:5173
 ```
 
-### 4. (Optional) Install Gemma 3 via Ollama
+---
+
+## 🐳 Docker Deployment
+
+A complete containerized deployment is available via Docker Compose:
 
 ```bash
-ollama pull gemma3
-# Then open AI Settings tab in the app and click "Test Local AI Service"
+docker compose up --build
 ```
-
-The app works fully in **Offline Guided Mode** even without Ollama or the Python backend.
+- Frontend UI: `http://localhost:5173`
+- Backend API: `http://localhost:8000`
+- SQLite volume: mounted persistently at `./backend/data`
 
 ---
 
-## 🗂️ Project Structure
+## 🧪 Automated Testing & Verification
 
-```
-fieldsense-ai/
-├── backend/                    # Python FastAPI + LangGraph backend
-│   ├── main.py                 # FastAPI app, CORS, /api/investigate endpoint
-│   ├── schemas.py              # Pydantic input/output schemas
-│   ├── investigation_graph.py  # LangGraph 6-agent workflow
-│   ├── knowledge_index.json    # Local curated scientific knowledge base
-│   └── requirements.txt
-│
-├── src/                        # React/TypeScript frontend
-│   ├── components/
-│   │   ├── AIObserverView.tsx  # Main investigation form + report renderer
-│   │   ├── MissionView.tsx     # Outdoor field mission cards & timer
-│   │   ├── FieldJournalView.tsx# Local journal with Dexie/IndexedDB
-│   │   ├── ScorecardView.tsx   # Outdoor activity stats & streaks
-│   │   └── SettingsView.tsx    # Ollama URL + model configuration
-│   ├── services/
-│   │   ├── fastapiService.ts   # FastAPI integration + response mapping
-│   │   ├── ollama.ts           # Ollama health check + LLM client
-│   │   └── offlineObserver.ts  # Deterministic rule engine (no LLM)
-│   ├── data/missions.ts        # 5 curated outdoor field mission templates
-│   ├── db/index.ts             # Dexie IndexedDB schema
-│   └── types/index.ts          # TypeScript domain types
-│
-├── public/                     # PWA manifest, service worker, icons
-├── package.json
-└── vite.config.ts
-```
-
----
-
-## 🔬 Scientific Knowledge Sources
-
-The local knowledge index (`backend/knowledge_index.json`) cites:
-
-| ID | Topic | Domain |
-|----|-------|--------|
-| KB-CHL-001 | Nitrogen vs Magnesium Mobile Nutrient Translocation | Plant Physiology & Agronomy |
-| KB-ROOT-002 | Root Zone Anoxia & Impaired Active Transport (Waterlogging) | Soil Physics & Plant Respiration |
-| KB-PATH-003 | Vascular Wilt Pathogens (Fusarium & Verticillium) | Plant Pathology |
-| KB-MET-004 | Photo-Inhibition & Meteorological Thermal Shock | Ecophysiology |
-
-All passages are paraphrased from published agronomic and ecological literature. No diagnoses are made—only competing hypotheses with evidence matrices.
-
----
-
-## 🧪 Testing
+The project includes unit and integration test suites covering AI validation, catalogue rules, PayPal order binding, and webhook deduplication:
 
 ```bash
-npm test
-# → 13/13 unit tests pass (Vitest + Testing Library + fake-indexeddb)
+# Backend pytest suite (8 tests)
+cd backend && pytest tests/test_backend_api.py -v
+
+# Frontend Vitest suite (13 tests)
+npm test -- --run
+
+# Frontend TypeScript build
+npm run build
 ```
 
 ---
 
-## ✅ Evidence & Safety Principles
+## 📖 Documentation & Judging Resources
 
-- **No hasty diagnoses** — FieldSense always presents *competing* hypotheses
-- **Evidence vs. inference** — Every report separates what was *observed* from what is *deduced*
-- **Uncertainty is explicit** — Every report shows `low / moderate / high` confidence with rationale
-- **Offline fallback is honest** — Rule-based guidance is clearly labeled, never passed off as AI
-- **Privacy-first** — All data stays on your device. No accounts. No telemetry.
+- **[docs/demo-runbook.md](docs/demo-runbook.md)**: 5-minute step-by-step judging walkthrough.
+- **[docs/final-audit.md](docs/final-audit.md)**: Line-by-line audit of all 8 execution paths.
+- **[docs/fix-report.md](docs/fix-report.md)**: Detailed report of all security and architectural fixes.
+- **[docs/test-evidence.md](docs/test-evidence.md)**: Complete test execution logs and proofs.
+- **[docs/spec.md](docs/spec.md)**: API endpoint specifications and data models.
 
 ---
 
 ## 📜 License
-
 MIT — see [LICENSE](LICENSE)
-
----
-
-## 🤝 Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). PRs welcome for new mission templates, knowledge index entries, and language support.

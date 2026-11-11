@@ -6,11 +6,11 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000
-      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-mock_client_id}
-      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-mock_client_secret}
-      - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-mock_webhook_id}
-      - PAYPAL_ENV=sandbox
+      - ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://localhost:80
+      - PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
+      - PAYPAL_CLIENT_SECRET=${PAYPAL_CLIENT_SECRET:-}
+      - PAYPAL_WEBHOOK_ID=${PAYPAL_WEBHOOK_ID:-}
+      - PAYPAL_ENV=${PAYPAL_ENV:-sandbox}
     volumes:
       - ./backend/data:/app/backend/data
 
@@ -19,6 +19,9 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_PAYPAL_CLIENT_ID=${PAYPAL_CLIENT_ID:-}
     depends_on:
       - fastapi-backend

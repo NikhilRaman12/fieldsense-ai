@@ -1,7 +1,7 @@
 import type { ObservationInput } from './aiProvider'
 import type { ObservationReport, OrderQuote, OrderRecord, RecommendedProduct } from '../types'
 
-const FASTAPI_BASE_URL = 'http://127.0.0.1:8000'
+const FASTAPI_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000'
 
 export async function checkFastAPIHealth(): Promise<{ isReachable: boolean; orchestrator?: string }> {
   try {
@@ -41,7 +41,7 @@ export async function fetchQuote(items: Array<{ sku: string; quantity: number }>
 export async function createBackendPayPalOrder(
   items: Array<{ sku: string; quantity: number }>,
   customerNotes?: string
-): Promise<{ order_id: number; paypal_order_id: string; total: number; currency: string }> {
+): Promise<{ order_id: number; client_order_ref: string; paypal_order_id: string; total: number; currency: string }> {
   const res = await fetch(`${FASTAPI_BASE_URL}/api/orders/create`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -57,7 +57,7 @@ export async function createBackendPayPalOrder(
 export async function captureBackendPayPalOrder(
   orderId: number,
   paypalOrderId: string
-): Promise<{ order_id: number; status: string; paypal_capture_id: string; total_amount: number }> {
+): Promise<{ order_id: number; status: string; paypal_capture_id: string; total_amount: number; currency: string }> {
   const res = await fetch(`${FASTAPI_BASE_URL}/api/orders/${orderId}/capture`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

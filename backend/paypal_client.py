@@ -6,21 +6,26 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+class PayPalConfigurationError(RuntimeError):
+    """Raised when PayPal credentials or configuration are missing or invalid."""
+    pass
+
 class PayPalClient:
     """
     Server-side PayPal REST API v2 client.
     Handles OAuth2 token acquisition, order creation, capture, and webhook signature verification.
+    Fails closed when credentials are missing or unconfigured.
     """
     def __init__(
         self,
         client_id: Optional[str] = None,
         client_secret: Optional[str] = None,
         webhook_id: Optional[str] = None,
-        environment: str = "sandbox",
+        environment: Optional[str] = None,
     ):
-        self.client_id = client_id or os.getenv("PAYPAL_CLIENT_ID", "mock_client_id")
-        self.client_secret = client_secret or os.getenv("PAYPAL_CLIENT_SECRET", "mock_client_secret")
-        self.webhook_id = webhook_id or os.getenv("PAYPAL_WEBHOOK_ID", "mock_webhook_id")
+        self.client_id = client_id or os.getenv("PAYPAL_CLIENT_ID")
+        self.client_secret = client_secret or os.getenv("PAYPAL_CLIENT_SECRET")
+        self.webhook_id = webhook_id or os.getenv("PAYPAL_WEBHOOK_ID")
         self.environment = environment or os.getenv("PAYPAL_ENV", "sandbox")
 
         if self.environment == "live":
@@ -33,9 +38,9 @@ class PayPalClient:
     def is_configured(self) -> bool:
         return (
             bool(self.client_id)
-            and self.client_id != "mock_client_id"
+            and self.client_id not in ("mock_client_id", "test", "")
             and bool(self.client_secret)
-            and self.client_secret != "mock_client_secret"
+            and self.client_secret not in ("mock_client_secret", "")
         )
 
     async def get_access_token(self) -> str:
@@ -43,9 +48,9 @@ class PayPalClient:
             return self._access_token
 
         if not self.is_configured():
-            # Return synthetic token for development/sandbox simulation
-            logger.info("Using simulated sandbox access token.")
-            return "A21AA_SIMULATED_PAYPAL_SANDBOX_ACCESS_TOKEN"
+            raise PayPalConfigurationError(
+                "PayPal is not configured. Set PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET in your environment."
+            )
 
         auth = (self.client_id, self.client_secret)
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -66,23 +71,8 @@ class PayPalClient:
         """
         Creates a v2/checkout/orders transaction on PayPal.
         Amounts are strictly pulled from the server-validated quote.
+        Fails closed if PayPal is unconfigured.
         """
-        if not self.is_configured():
-            import uuid
-            mock_id = f"PAYPAL-SANDBOX-{uuid.uuid4().hex[:12].upper()}"
-            return {
-                "id": mock_id,
-                "status": "CREATED",
-                "simulated": True,
-                "links": [
-                    {
-                        "href": f"https://www.sandbox.paypal.com/checkoutnow?token={mock_id}",
-                        "rel": "approve",
-                        "method": "GET",
-                    }
-                ],
-            }
-
         token = await self.get_access_token()
         headers = {
             "Content-Type": "application/json",
@@ -150,28 +140,8 @@ class PayPalClient:
     async def capture_order(self, paypal_order_id: str) -> Dict[str, Any]:
         """
         Captures authorized PayPal funds server-to-server.
+        Fails closed if PayPal is unconfigured.
         """
-        if not self.is_configured():
-            import uuid
-            capture_id = f"CAP-{uuid.uuid4().hex[:12].upper()}"
-            return {
-                "id": paypal_order_id,
-                "status": "COMPLETED",
-                "simulated": True,
-                "purchase_units": [
-                    {
-                        "payments": {
-                            "captures": [
-                                {
-                                    "id": capture_id,
-                                    "status": "COMPLETED",
-                                }
-                            ]
-                        }
-                    }
-                ],
-            }
-
         token = await self.get_access_token()
         headers = {
             "Content-Type": "application/json",
@@ -199,21 +169,26 @@ class PayPalClient:
     ) -> bool:
         """
         Verifies PayPal webhook authenticity via the verification endpoint.
+        Fails closed if PayPal or webhook_id is unconfigured.
         """
-        if not self.is_configured():
-            # In simulated development without credentials, verify non-empty headers
-            return bool(transmission_id and transmission_sig)
+        if not self.is_configured() or not self.webhook_id:
+            logger.error("Cannot verify webhook signature: PayPal is not configured with client credentials and webhook_id.")
+            return False
+
+        if not all([transmission_id, transmission_time, cert_url, auth_algo, transmission_sig]):
+            logger.warning("Missing required PayPal transmission headers for webhook verification.")
+            return False
+
+        try:
+            body_json = json.loads(raw_body)
+        except Exception:
+            return False
 
         token = await self.get_access_token()
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {token}",
         }
-
-        try:
-            body_json = json.loads(raw_body)
-        except Exception:
-            return False
 
         verification_payload = {
             "transmission_id": transmission_id,

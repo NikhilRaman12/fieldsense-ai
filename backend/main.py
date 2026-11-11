@@ -12,7 +12,7 @@ from schemas import FieldEvidenceInput, FieldInvestigationReport
 from investigation_graph import run_field_investigation_async
 from catalogue_service import load_catalogue, calculate_quote, get_product_by_sku
 from models import init_db, get_session, Order, OrderItem, OrderStatus, WebhookEvent
-from paypal_client import paypal_service
+from paypal_client import paypal_service, PayPalConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ def health_check():
         "inference": "Ollama + LangGraph Multi-Agent Orchestrator",
         "commerce": "PayPal REST API v2",
         "database": "SQLite / SQLModel",
+        "paypal_configured": paypal_service.is_configured(),
     }
 
 # --- 1. INVESTIGATION ---
@@ -136,13 +137,20 @@ async def create_paypal_order(req: CreateOrderRequest, session: Session = Depend
         session.add(db_item)
     session.commit()
 
-    # Call PayPal
+    # Call PayPal API
     try:
         paypal_res = await paypal_service.create_order(quote, custom_reference=client_ref)
         paypal_order_id = paypal_res["id"]
         db_order.paypal_order_id = paypal_order_id
         session.add(db_order)
         session.commit()
+        session.refresh(db_order)
+    except PayPalConfigurationError as e:
+        logger.error("PayPal configuration missing: %s", str(e))
+        db_order.status = OrderStatus.FAILED
+        session.add(db_order)
+        session.commit()
+        raise HTTPException(status_code=503, detail="Payment gateway not configured. Please set PayPal credentials.")
     except Exception as e:
         logger.error("PayPal Order creation failed: %s", str(e))
         db_order.status = OrderStatus.FAILED
@@ -171,8 +179,13 @@ async def capture_paypal_order(
     session: Session = Depends(get_session)
 ):
     """
-    Server-authoritative capture.
-    Idempotent: if order is already COMPLETED, returns cached response.
+    Server-authoritative capture with strict binding validation:
+    1. Validates local order exists.
+    2. Validates that req.paypal_order_id matches order.paypal_order_id.
+    3. Idempotently returns completed order if already captured.
+    4. Executes capture via PayPal API.
+    5. Validates capture response status, amount, currency, and custom ID.
+    6. Updates database order to COMPLETED.
     """
     statement = select(Order).where(Order.id == order_id)
     order = session.exec(statement).first()
@@ -180,47 +193,96 @@ async def capture_paypal_order(
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 
-    if order.status == OrderStatus.COMPLETED:
-        return {
-            "order_id": order.id,
-            "status": order.status,
-            "paypal_capture_id": order.paypal_capture_id,
-            "message": "Order already captured (idempotent response).",
-        }
-
-    try:
-        capture_res = await paypal_service.capture_order(req.paypal_order_id)
-    except Exception as e:
-        logger.error("PayPal capture call failed: %s", str(e))
-        raise HTTPException(status_code=502, detail="Failed to capture PayPal payment.")
-
-    capture_status = capture_res.get("status")
-    if capture_status == "COMPLETED":
-        captures = (
-            capture_res.get("purchase_units", [{}])[0]
-            .get("payments", {})
-            .get("captures", [])
+    # Strict server-side order binding check
+    if order.paypal_order_id and order.paypal_order_id != req.paypal_order_id:
+        logger.error(
+            "PayPal order ID mismatch for local order #%d: expected %s, got %s",
+            order_id,
+            order.paypal_order_id,
+            req.paypal_order_id
         )
-        capture_id = captures[0].get("id") if captures else "CAP-VERIFIED"
+        raise HTTPException(
+            status_code=400,
+            detail="Order binding error: PayPal order ID does not match local order record."
+        )
 
-        order.status = OrderStatus.COMPLETED
-        order.paypal_capture_id = capture_id
-        session.add(order)
-        session.commit()
-        session.refresh(order)
-
+    # Idempotent response if already completed
+    if order.status == OrderStatus.COMPLETED:
         return {
             "order_id": order.id,
             "status": order.status,
             "paypal_capture_id": order.paypal_capture_id,
             "total_amount": order.total_amount,
             "currency": order.currency,
+            "message": "Order already captured (idempotent response).",
         }
-    else:
+
+    # Execute PayPal capture
+    try:
+        capture_res = await paypal_service.capture_order(req.paypal_order_id)
+    except PayPalConfigurationError as e:
+        logger.error("PayPal configuration missing: %s", str(e))
+        raise HTTPException(status_code=503, detail="Payment gateway not configured.")
+    except Exception as e:
+        logger.error("PayPal capture call failed: %s", str(e))
+        raise HTTPException(status_code=502, detail="Failed to capture PayPal payment.")
+
+    capture_status = capture_res.get("status")
+    if capture_status != "COMPLETED":
         order.status = OrderStatus.FAILED
         session.add(order)
         session.commit()
-        raise HTTPException(status_code=400, detail=f"Capture not completed: {capture_status}")
+        raise HTTPException(status_code=400, detail=f"PayPal capture not completed: status is {capture_status}")
+
+    # Inspect purchase_units for capture details
+    purchase_units = capture_res.get("purchase_units", [])
+    if not purchase_units:
+        raise HTTPException(status_code=502, detail="Malformed PayPal capture response: missing purchase_units.")
+
+    pu = purchase_units[0]
+    payments = pu.get("payments", {})
+    captures = payments.get("captures", [])
+    if not captures:
+        raise HTTPException(status_code=502, detail="Malformed PayPal capture response: no captures found.")
+
+    first_capture = captures[0]
+    capture_id = first_capture.get("id")
+    if not capture_id:
+        raise HTTPException(status_code=502, detail="Missing capture ID in PayPal response.")
+
+    # Validate captured amount and currency
+    cap_amount_info = first_capture.get("amount", {})
+    captured_value = float(cap_amount_info.get("value", 0.0))
+    captured_currency = cap_amount_info.get("currency_code", "")
+
+    if round(captured_value, 2) != round(order.total_amount, 2) or captured_currency != order.currency:
+        logger.error(
+            "Captured amount mismatch for order #%d: expected %.2f %s, got %.2f %s",
+            order_id,
+            order.total_amount,
+            order.currency,
+            captured_value,
+            captured_currency
+        )
+        order.status = OrderStatus.FAILED
+        session.add(order)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Captured amount or currency mismatch.")
+
+    # Mark COMPLETED with verified capture ID
+    order.status = OrderStatus.COMPLETED
+    order.paypal_capture_id = capture_id
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    return {
+        "order_id": order.id,
+        "status": order.status,
+        "paypal_capture_id": order.paypal_capture_id,
+        "total_amount": order.total_amount,
+        "currency": order.currency,
+    }
 
 # --- 5. ORDERS HISTORY ---
 @app.get("/api/orders")
@@ -267,13 +329,18 @@ async def paypal_webhook_handler(
 ):
     raw_body = (await request.body()).decode("utf-8")
 
-    # 1. Cryptographic Signature Verification
+    # 1. Require all security headers
+    if not all([paypal_transmission_id, paypal_transmission_time, paypal_cert_url, paypal_auth_algo, paypal_transmission_sig]):
+        logger.warning("Rejecting webhook: missing required PayPal transmission security headers.")
+        raise HTTPException(status_code=400, detail="Missing required PayPal transmission security headers.")
+
+    # 2. Cryptographic Signature Verification via PayPal API
     is_valid = await paypal_service.verify_webhook_signature(
-        transmission_id=paypal_transmission_id or "",
-        transmission_time=paypal_transmission_time or "",
-        cert_url=paypal_cert_url or "",
-        auth_algo=paypal_auth_algo or "",
-        transmission_sig=paypal_transmission_sig or "",
+        transmission_id=paypal_transmission_id,
+        transmission_time=paypal_transmission_time,
+        cert_url=paypal_cert_url,
+        auth_algo=paypal_auth_algo,
+        transmission_sig=paypal_transmission_sig,
         raw_body=raw_body,
     )
 
@@ -290,7 +357,10 @@ async def paypal_webhook_handler(
     event_type = event.get("event_type")
     resource = event.get("resource", {})
 
-    # 2. Idempotency Check
+    if not event_id:
+        raise HTTPException(status_code=400, detail="Missing event ID.")
+
+    # 3. Idempotency Check with Database Guarantee
     existing = session.exec(select(WebhookEvent).where(WebhookEvent.event_id == event_id)).first()
     if existing:
         logger.info("Duplicate webhook event %s received. Returning idempotent 200 OK.", event_id)
@@ -299,23 +369,34 @@ async def paypal_webhook_handler(
     # Record webhook
     wh_record = WebhookEvent(
         event_id=event_id,
-        event_type=event_type,
+        event_type=event_type or "UNKNOWN",
         resource_id=resource.get("id"),
         status="PROCESSED",
         payload_json=raw_body,
     )
     session.add(wh_record)
 
-    # 3. Handle Events
+    # 4. Handle PAYMENT.CAPTURE.COMPLETED with order reconciliation
     if event_type == "PAYMENT.CAPTURE.COMPLETED":
         custom_id = resource.get("custom_id")
         capture_id = resource.get("id")
-        if custom_id:
+        capture_status = resource.get("status")
+
+        if custom_id and capture_status == "COMPLETED":
             ord = session.exec(select(Order).where(Order.client_order_ref == custom_id)).first()
-            if ord and ord.status != OrderStatus.COMPLETED:
-                ord.status = OrderStatus.COMPLETED
-                ord.paypal_capture_id = capture_id
-                session.add(ord)
+            if ord:
+                # Validate amount from resource
+                res_amount = resource.get("amount", {})
+                res_value = float(res_amount.get("value", 0.0))
+                res_currency = res_amount.get("currency_code", "")
+
+                if round(res_value, 2) == round(ord.total_amount, 2) and res_currency == ord.currency:
+                    if ord.status != OrderStatus.COMPLETED:
+                        ord.status = OrderStatus.COMPLETED
+                        ord.paypal_capture_id = capture_id
+                        session.add(ord)
+                else:
+                    logger.warning("Webhook amount mismatch for order ref %s. Not completing order.", custom_id)
 
     session.commit()
     return {"status": "success", "event_id": event_id}
