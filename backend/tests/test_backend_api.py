@@ -188,6 +188,9 @@ def test_capture_amount_mismatch_fails(mock_capture, mock_create):
         json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
     )
     order_id = create_res.json()["order_id"]
+    client_ref = create_res.json()["client_order_ref"]
+
+    mock_capture.return_value["purchase_units"][0]["custom_id"] = client_ref
 
     cap_res = client.post(
         f"/api/orders/{order_id}/capture",
@@ -228,6 +231,9 @@ def test_capture_currency_mismatch_fails(mock_capture, mock_create):
         json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
     )
     order_id = create_res.json()["order_id"]
+    client_ref = create_res.json()["client_order_ref"]
+
+    mock_capture.return_value["purchase_units"][0]["custom_id"] = client_ref
 
     cap_res = client.post(
         f"/api/orders/{order_id}/capture",
@@ -262,6 +268,9 @@ def test_capture_missing_capture_id_fails(mock_capture, mock_create):
         json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
     )
     order_id = create_res.json()["order_id"]
+    client_ref = create_res.json()["client_order_ref"]
+
+    mock_capture.return_value["purchase_units"][0]["custom_id"] = client_ref
 
     cap_res = client.post(
         f"/api/orders/{order_id}/capture",
@@ -323,3 +332,205 @@ def test_webhook_cryptographic_verification_and_idempotency(mock_verify):
     )
     assert dup_res.status_code == 200
     assert dup_res.json()["status"] == "already_processed"
+
+def test_quote_invalid_sku_fails():
+    res = client.post("/api/orders/quote", json={"items": [{"sku": "SKU-DOES-NOT-EXIST", "quantity": 1}]})
+    assert res.status_code == 400
+    assert "Invalid or unknown product SKU" in res.json()["detail"]
+
+def test_quote_invalid_quantity_fails():
+    # Negative quantity
+    res1 = client.post("/api/orders/quote", json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 0}]})
+    assert res1.status_code == 422 or res1.status_code == 400
+
+    # Excessive quantity > 100
+    res2 = client.post("/api/orders/quote", json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 999}]})
+    assert res2.status_code == 422 or res2.status_code == 400
+
+@patch.object(paypal_service, "create_order", new_callable=AsyncMock)
+@patch.object(paypal_service, "capture_order", new_callable=AsyncMock)
+def test_capture_missing_purchase_unit_reference_fails(mock_capture, mock_create):
+    mock_create.return_value = {
+        "id": "PAYPAL-ORDER-NO-REF",
+        "status": "CREATED",
+        "links": [],
+    }
+    # Purchase unit has no custom_id and no reference_id
+    mock_capture.return_value = {
+        "id": "PAYPAL-ORDER-NO-REF",
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "payments": {
+                    "captures": [
+                        {
+                            "id": "CAP-NO-REF",
+                            "status": "COMPLETED",
+                            "amount": {"value": "25.21", "currency_code": "USD"},
+                        }
+                    ]
+                }
+            }
+        ],
+    }
+
+    create_res = client.post(
+        "/api/orders/create",
+        json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+    )
+    order_id = create_res.json()["order_id"]
+
+    cap_res = client.post(
+        f"/api/orders/{order_id}/capture",
+        json={"paypal_order_id": "PAYPAL-ORDER-NO-REF"}
+    )
+    assert cap_res.status_code == 400
+    assert "Missing purchase unit reference" in cap_res.json()["detail"]
+
+@patch.object(paypal_service, "create_order", new_callable=AsyncMock)
+@patch.object(paypal_service, "capture_order", new_callable=AsyncMock)
+def test_capture_incorrect_purchase_unit_reference_fails(mock_capture, mock_create):
+    mock_create.return_value = {
+        "id": "PAYPAL-ORDER-WRONG-REF",
+        "status": "CREATED",
+        "links": [],
+    }
+    mock_capture.return_value = {
+        "id": "PAYPAL-ORDER-WRONG-REF",
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "custom_id": "fs-ord-completely-unrelated-ref",
+                "payments": {
+                    "captures": [
+                        {
+                            "id": "CAP-WRONG-REF",
+                            "status": "COMPLETED",
+                            "amount": {"value": "25.21", "currency_code": "USD"},
+                        }
+                    ]
+                }
+            }
+        ],
+    }
+
+    create_res = client.post(
+        "/api/orders/create",
+        json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+    )
+    order_id = create_res.json()["order_id"]
+
+    cap_res = client.post(
+        f"/api/orders/{order_id}/capture",
+        json={"paypal_order_id": "PAYPAL-ORDER-WRONG-REF"}
+    )
+    assert cap_res.status_code == 400
+    assert "Purchase unit reference mismatch" in cap_res.json()["detail"]
+
+@patch.object(paypal_service, "create_order", new_callable=AsyncMock)
+@patch.object(paypal_service, "capture_order", new_callable=AsyncMock)
+def test_repeated_capture_request_is_idempotent(mock_capture, mock_create):
+    mock_create.return_value = {
+        "id": "PAYPAL-ORDER-IDEMP",
+        "status": "CREATED",
+        "links": [],
+    }
+    create_res = client.post(
+        "/api/orders/create",
+        json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+    )
+    order_id = create_res.json()["order_id"]
+    client_ref = create_res.json()["client_order_ref"]
+
+    mock_capture.return_value = {
+        "id": "PAYPAL-ORDER-IDEMP",
+        "status": "COMPLETED",
+        "purchase_units": [
+            {
+                "custom_id": client_ref,
+                "payments": {
+                    "captures": [
+                        {
+                            "id": "CAP-IDEMP-01",
+                            "status": "COMPLETED",
+                            "amount": {"value": "25.21", "currency_code": "USD"},
+                        }
+                    ]
+                }
+            }
+        ],
+    }
+
+    # First capture
+    cap1 = client.post(f"/api/orders/{order_id}/capture", json={"paypal_order_id": "PAYPAL-ORDER-IDEMP"})
+    assert cap1.status_code == 200
+    assert cap1.json()["status"] == "COMPLETED"
+
+    # Repeated capture must succeed idempotently without calling PayPal again
+    mock_capture.side_effect = RuntimeError("Should not be called again")
+    cap2 = client.post(f"/api/orders/{order_id}/capture", json={"paypal_order_id": "PAYPAL-ORDER-IDEMP"})
+    assert cap2.status_code == 200
+    assert cap2.json()["status"] == "COMPLETED"
+    assert "idempotent" in cap2.json().get("message", "")
+
+@patch.object(paypal_service, "create_order", new_callable=AsyncMock)
+@patch.object(paypal_service, "verify_webhook_signature", new_callable=AsyncMock)
+def test_webhook_order_reconciliation_and_amount_mismatch(mock_verify, mock_create):
+    mock_verify.return_value = True
+    mock_create.return_value = {
+        "id": "PAYPAL-ORDER-WH-RECON",
+        "status": "CREATED",
+        "links": [],
+    }
+
+    create_res = client.post(
+        "/api/orders/create",
+        json={"items": [{"sku": "KIT-SOIL-PH-01", "quantity": 1}]}
+    )
+    order_id = create_res.json()["order_id"]
+    client_ref = create_res.json()["client_order_ref"]
+
+    headers = {
+        "paypal-transmission-id": "TID-RECON-1",
+        "paypal-transmission-time": "2026-11-11T12:00:00Z",
+        "paypal-cert-url": "https://api.sandbox.paypal.com/cert",
+        "paypal-auth-algo": "SHA256withRSA",
+        "paypal-transmission-sig": "SIG",
+    }
+
+    # 1. Webhook with wrong amount does NOT complete order
+    bad_amount_payload = {
+        "id": "EVENT-BAD-AMOUNT",
+        "event_type": "PAYMENT.CAPTURE.COMPLETED",
+        "resource": {
+            "id": "CAP-WH-BAD",
+            "status": "COMPLETED",
+            "custom_id": client_ref,
+            "amount": {"value": "0.50", "currency_code": "USD"},
+        }
+    }
+    client.post("/api/payments/webhook", json=bad_amount_payload, headers=headers)
+
+    # Check order still in CREATED status
+    orders_res = client.get("/api/orders")
+    matched = [o for o in orders_res.json() if o["id"] == order_id][0]
+    assert matched["status"] == "CREATED"
+
+    # 2. Webhook with matching amount reconciles order to COMPLETED
+    headers["paypal-transmission-id"] = "TID-RECON-2"
+    good_amount_payload = {
+        "id": "EVENT-GOOD-AMOUNT",
+        "event_type": "PAYMENT.CAPTURE.COMPLETED",
+        "resource": {
+            "id": "CAP-WH-GENUINE-888",
+            "status": "COMPLETED",
+            "custom_id": client_ref,
+            "amount": {"value": "25.21", "currency_code": "USD"},
+        }
+    }
+    client.post("/api/payments/webhook", json=good_amount_payload, headers=headers)
+
+    orders_res2 = client.get("/api/orders")
+    matched2 = [o for o in orders_res2.json() if o["id"] == order_id][0]
+    assert matched2["status"] == "COMPLETED"
+    assert matched2["paypal_capture_id"] == "CAP-WH-GENUINE-888"

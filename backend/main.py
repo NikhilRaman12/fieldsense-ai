@@ -259,11 +259,22 @@ async def capture_paypal_order(
     if not purchase_units:
         raise HTTPException(status_code=502, detail="Malformed PayPal capture response: missing purchase_units.")
 
+    if len(purchase_units) != 1:
+        logger.error("Expected exactly 1 purchase_unit in capture response, found %d", len(purchase_units))
+        raise HTTPException(status_code=400, detail="Unexpected purchase_units count in PayPal capture response.")
+
     pu = purchase_units[0]
 
-    # Validate purchase_unit custom_id/reference_id matches our client_order_ref
+    # Require custom_id or reference_id to exist and match exactly with client_order_ref
     unit_custom_id = pu.get("custom_id") or pu.get("reference_id")
-    if unit_custom_id and unit_custom_id != order.client_order_ref:
+    if not unit_custom_id:
+        logger.error("Purchase unit missing custom_id and reference_id for order #%d", order_id)
+        order.status = OrderStatus.FAILED
+        session.add(order)
+        session.commit()
+        raise HTTPException(status_code=400, detail="Missing purchase unit reference in PayPal capture response.")
+
+    if unit_custom_id != order.client_order_ref:
         logger.error(
             "Purchase unit reference mismatch for order #%d: expected %s, got %s",
             order_id,
@@ -411,29 +422,48 @@ async def paypal_webhook_handler(
     )
     session.add(wh_record)
 
-    # 4. Handle PAYMENT.CAPTURE.COMPLETED with order reconciliation
+    # 4. Handle PAYMENT.CAPTURE.COMPLETED with strict validation and safe state handling
     if event_type == "PAYMENT.CAPTURE.COMPLETED":
         custom_id = resource.get("custom_id")
         capture_id = resource.get("id")
         capture_status = resource.get("status")
 
-        if custom_id and capture_status == "COMPLETED":
+        if not custom_id or not capture_id:
+            logger.warning("Webhook PAYMENT.CAPTURE.COMPLETED missing custom_id or capture ID.")
+        elif capture_status != "COMPLETED":
+            logger.warning("Webhook PAYMENT.CAPTURE.COMPLETED with non-completed status: %s", capture_status)
+        else:
             ord = session.exec(select(Order).where(Order.client_order_ref == custom_id)).first()
             if ord:
-                # Validate amount from resource
-                res_amount = resource.get("amount", {})
-                res_value = float(res_amount.get("value", 0.0))
-                res_currency = res_amount.get("currency_code", "")
+                # Handle out-of-order events safely: if order is already completed, ensure capture ID matches
+                if ord.status == OrderStatus.COMPLETED:
+                    if ord.paypal_capture_id and ord.paypal_capture_id != capture_id:
+                        logger.error("Webhook capture ID %s conflicts with existing order capture ID %s", capture_id, ord.paypal_capture_id)
+                    else:
+                        logger.info("Order %s already marked COMPLETED. Webhook event safely acknowledged.", custom_id)
+                elif ord.status in (OrderStatus.FAILED, OrderStatus.CANCELLED):
+                    logger.warning("Order %s in terminal state %s. Out-of-order capture ignored without manual audit.", custom_id, ord.status)
+                else:
+                    # Validate amount and currency
+                    res_amount = resource.get("amount", {})
+                    try:
+                        res_value = float(res_amount.get("value", 0.0))
+                    except (ValueError, TypeError):
+                        res_value = 0.0
+                    res_currency = res_amount.get("currency_code", "")
 
-                if round(res_value, 2) == round(ord.total_amount, 2) and res_currency == ord.currency:
-                    if ord.status != OrderStatus.COMPLETED:
+                    if round(res_value, 2) == round(ord.total_amount, 2) and res_currency == ord.currency:
                         ord.status = OrderStatus.COMPLETED
                         ord.paypal_capture_id = capture_id
                         session.add(ord)
-                else:
-                    logger.warning("Webhook amount mismatch for order ref %s. Not completing order.", custom_id)
+                        logger.info("Reconciled order %s to COMPLETED via PayPal webhook.", custom_id)
+                    else:
+                        logger.warning(
+                            "Webhook amount/currency mismatch for order %s: expected %.2f %s, got %.2f %s. Order NOT completed.",
+                            custom_id, ord.total_amount, ord.currency, res_value, res_currency
+                        )
             else:
-                logger.warning("Webhook received for unknown order reference: %s", custom_id)
+                logger.warning("Webhook received for unknown order reference: %s. Order not found.", custom_id)
 
     session.commit()
     return {"status": "success", "event_id": event_id}

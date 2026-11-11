@@ -70,7 +70,9 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
 
   if (!isOpen) return null
 
-  const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'test'
+  const rawClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID
+  const isPayPalConfigured = Boolean(rawClientId && rawClientId !== 'test' && rawClientId.trim() !== '')
+  const paypalClientId = isPayPalConfigured ? rawClientId.trim() : ''
 
   return (
     <div className="cart-modal-overlay" style={{
@@ -228,15 +230,36 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
               </div>
             )}
 
-            {/* PayPal Smart Payment Buttons */}
+            {/* PayPal Gateway Configuration Check & Smart Buttons */}
             {quote && quote.total > 0 && !isProcessingPayment && (
               <div style={{ marginTop: '1.2rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#047857', marginBottom: '0.5rem' }}>
-                  <ShieldCheck size={16} />
-                  <span>Server-Validated Pricing & Secure PayPal Capture</span>
-                </div>
+                {!isPayPalConfigured ? (
+                  <div style={{
+                    padding: '1rem',
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '8px',
+                    color: '#92400e',
+                    fontSize: '0.85rem',
+                    lineHeight: '1.4'
+                  }}>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                      <AlertCircle size={16} />
+                      PayPal Sandbox Credentials Required
+                    </div>
+                    <div>
+                      Checkout is disabled because <code>VITE_PAYPAL_CLIENT_ID</code> is not configured.
+                      To enable live Sandbox payments, add your PayPal Sandbox Client ID to <code>.env</code> and restart the application.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.78rem', color: '#047857', marginBottom: '0.5rem' }}>
+                      <ShieldCheck size={16} />
+                      <span>Server-Validated Pricing & Secure PayPal Capture</span>
+                    </div>
 
-                <PayPalScriptProvider options={{ clientId: paypalClientId, currency: quote.currency }}>
+                    <PayPalScriptProvider options={{ clientId: paypalClientId, currency: quote.currency }}>
                   <PayPalButtons
                     style={{ layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay' }}
                     createOrder={async () => {
@@ -283,6 +306,8 @@ export const RemediationDrawer: React.FC<RemediationDrawerProps> = ({
                     }}
                   />
                 </PayPalScriptProvider>
+                  </>
+                )}
               </div>
             )}
           </>

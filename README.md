@@ -14,13 +14,33 @@
 
 ## 🎯 What FieldSense Commerce AI Does
 
-Traditional plant diagnosis apps often jump to premature, high-confidence classifications from an isolated photo, frequently advising growers to immediately buy synthetic chemicals.
+Traditional plant diagnosis apps frequently jump to premature, single-crop classifications from an isolated photo, often directing growers immediately to buy chemicals based on hasty assumptions.
 
-**FieldSense AI flips this paradigm:**
-1. **Multi-Agent Investigation**: Rather than guessing from a single snapshot, the AI investigates multiple competing hypotheses across plant pathology, root agronomy, and micro-climate conditions.
-2. **Prescribed Physical Tests**: Directs users outdoors to perform physical checks (soil ribbon tests, root core smell checks, cambium scrapes) to separate competing causes.
-3. **Grounded Catalogue Procurement**: Directly connects diagnostic hypotheses to server-verified remediation and testing supplies.
-4. **Server-Authoritative PayPal Checkout**: Enforces server pricing authority, order binding, cryptographic capture validation, and idempotent webhook reconciliation via PayPal REST API v2.
+**FieldSense AI transforms this paradigm:**
+1. **Multi-Agent Scientific Investigation**: Rather than guessing from a photo, the platform models competing hypotheses across plant pathology, root physiology, soil moisture, and micro-climate stress.
+2. **Prescribed Field Tests**: Guides growers outdoors to perform physical discriminating tests (soil ribbon tests, root-core olfactory inspection, cambium scrapes) before committing to treatments.
+3. **Evidence-Grounded Catalogue Procurement**: Links diagnostic hypotheses directly to server-verified remediation and soil test supplies from an authoritative local catalogue.
+4. **Server-Authoritative PayPal v2 Checkout**: Enforces server pricing authority, cryptographic capture validation, strict order binding, and idempotent webhook reconciliation via the PayPal REST API v2.
+
+---
+
+## 🤖 What AI Actually Does
+
+- **Ollama Local LLM Inference (`llama3.1:8b` or vision-capable models)**: When Ollama is running locally, FieldSense delivers multimodal prompt payloads (observation text, field parameters, base64 photo) to generate structured hypotheses and discriminating tests adhering to a strict Pydantic JSON schema.
+- **LangGraph Deterministic Heuristics**: If Ollama is offline or uninstalled, a compiled LangGraph state workflow (`investigation_graph.py`) executes deterministic agronomic decision rules across 6 modular nodes. The UI explicitly flags this with a `langgraph_offline_heuristics` banner to ensure complete transparency.
+- **Uncertainty & Agronomic Honesty**: The system distinguishes between observed facts, environmental context, competing hypotheses, and unknowns. Recommendations are grounded in catalogue items rather than hallucinated products. Growers are explicitly advised to consult accredited local extension services or professional agronomists for commercial decisions.
+
+---
+
+## 💳 How PayPal Is Integrated
+
+FieldSense AI implements a zero-simulation, fail-closed PayPal REST API v2 integration:
+- **Server Quote Authority (`/api/orders/quote`)**: Quotes are calculated strictly on the backend by querying `catalogue.json`. Client-side price or quantity tampering is impossible.
+- **Order Creation (`/api/orders/create`)**: Generates an internal order record in SQLite and creates a companion PayPal order with purchase units itemized against the authoritative quote.
+- **Fail-Closed Runtime**: Missing PayPal credentials cause the backend to return HTTP 503 (`PAYPAL_UNCONFIGURED`). No synthetic tokens, mock orders, or fake capture IDs exist in runtime.
+- **Client Configuration Guard**: If `VITE_PAYPAL_CLIENT_ID` is unset, the React drawer disables PayPal buttons and presents an actionable configuration warning.
+- **Order Binding & Capture Validation (`/api/orders/{id}/capture`)**: Validates that the client-supplied PayPal order matches the exact PayPal order bound to the local database record. Captures funds server-to-server and verifies status `COMPLETED`, non-empty `capture_id`, custom reference match, and exact currency/amount equality.
+- **Cryptographic Webhooks (`/api/payments/webhook`)**: Ingests `PAYMENT.CAPTURE.COMPLETED` events, validates all PayPal transmission headers against PayPal's official signature verification endpoint, and guarantees idempotent reconciliation.
 
 ---
 
@@ -68,7 +88,7 @@ Traditional plant diagnosis apps often jump to premature, high-confidence classi
 ### Prerequisites
 - **Node.js** $\ge 18$
 - **Python** $\ge 3.10$
-- **Ollama** (Optional for local AI models like `gemma` or `llama3.1`; transparent offline fallback activates if unavailable)
+- **Ollama** (Optional for local inference; fallback activates if uninstalled)
 
 ### 1. Clone & Configure Environment
 ```bash
@@ -100,7 +120,7 @@ npm run dev
 
 ## 🐳 Docker Deployment
 
-A complete containerized deployment is available via Docker Compose:
+A containerized deployment is configured via Docker Compose:
 
 ```bash
 docker compose up --build
@@ -113,28 +133,40 @@ docker compose up --build
 
 ## 🧪 Automated Testing & Verification
 
-The project includes unit and integration test suites covering AI validation, catalogue rules, PayPal order binding, and webhook deduplication:
+Comprehensive automated test suites cover AI fallback, catalogue quoting, PayPal order binding, and webhook deduplication:
 
 ```bash
-# Backend pytest suite (8 tests)
-cd backend && pytest tests/test_backend_api.py -v
+# Backend pytest suite (17 passed)
+cd backend && python -m pytest tests/test_backend_api.py -v
 
-# Frontend Vitest suite (13 tests)
+# Frontend Vitest suite (17 passed)
 npm test -- --run
 
-# Frontend TypeScript build
+# Frontend production build (0 errors)
 npm run build
+
+# Frontend linting (0 errors)
+npm run lint
 ```
 
 ---
 
-## 📖 Documentation & Judging Resources
+## ⚠️ Demo Scope & Limitations
 
-- **[docs/demo-runbook.md](docs/demo-runbook.md)**: 5-minute step-by-step judging walkthrough.
-- **[docs/final-audit.md](docs/final-audit.md)**: Line-by-line audit of all 8 execution paths.
-- **[docs/fix-report.md](docs/fix-report.md)**: Detailed report of all security and architectural fixes.
-- **[docs/test-evidence.md](docs/test-evidence.md)**: Complete test execution logs and proofs.
-- **[docs/spec.md](docs/spec.md)**: API endpoint specifications and data models.
+- **Public Demo Deployment**: This repository runs in local development mode or via local Docker containers. There is no public production URL hosted on the internet for this hackathon submission.
+- **Single-User Demo Mode**: The application order history currently displays all locally persisted orders without multi-tenant authentication. In production, order access would be partitioned by authenticated user identity.
+- **PayPal Mode**: Configured for the official PayPal Sandbox environment (`PAYPAL_ENV=sandbox`).
+
+---
+
+## 📖 Judging & Documentation Resources
+
+- **[docs/submission-readiness-report.md](docs/submission-readiness-report.md)**: Official hackathon submission gate assessment.
+- **[docs/payment-security-review.md](docs/payment-security-review.md)**: Cryptographic and order-binding security architecture.
+- **[docs/deployment-runbook.md](docs/deployment-runbook.md)**: Step-by-step setup and PayPal Sandbox test instructions.
+- **[docs/demo-runbook.md](docs/demo-runbook.md)**: 5-minute judge demonstration script.
+- **[docs/final-audit.md](docs/final-audit.md)**: Line-by-line audit of all 8 core execution paths.
+- **[docs/test-evidence.md](docs/test-evidence.md)**: Verified test run logs across frontend and backend.
 
 ---
 

@@ -50,11 +50,18 @@ def calculate_quote(items: List[Dict[str, Any]]) -> Dict[str, Any]:
     validated_items = []
     subtotal = 0.0
 
+    if not items:
+        raise ValueError("Cannot calculate quote for empty items list.")
+
     for req_item in items:
         sku = req_item.get("sku")
-        quantity = int(req_item.get("quantity", 1))
-        if quantity <= 0:
-            continue
+        try:
+            quantity = int(req_item.get("quantity", 1))
+        except (ValueError, TypeError):
+            raise ValueError(f"Invalid quantity for SKU: {sku}")
+
+        if quantity <= 0 or quantity > 100:
+            raise ValueError(f"Quantity for SKU '{sku}' must be between 1 and 100.")
 
         product = get_product_by_sku(sku)
         if not product:

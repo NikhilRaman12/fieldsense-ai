@@ -74,6 +74,25 @@ describe('RemediationDrawer PayPal Checkout Flow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.spyOn(fastapiService, 'fetchQuote').mockResolvedValue(mockQuote)
+    vi.stubEnv('VITE_PAYPAL_CLIENT_ID', 'sb-client-id-test-123')
+  })
+
+  it('displays configuration alert and disables checkout when VITE_PAYPAL_CLIENT_ID is missing', async () => {
+    vi.stubEnv('VITE_PAYPAL_CLIENT_ID', '')
+    render(
+      <RemediationDrawer
+        products={sampleProducts}
+        isOpen={true}
+        onClose={vi.fn()}
+        onOrderSuccess={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('PayPal Sandbox Credentials Required')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('mock-paypal-approve-btn')).not.toBeInTheDocument()
+    expect(screen.getByText(/Checkout is disabled because/i)).toBeInTheDocument()
   })
 
   it('calls createBackendPayPalOrder exactly once and captures the exact same order', async () => {
