@@ -155,6 +155,82 @@ export const AIObserverView: React.FC<AIObserverViewProps> = ({
           Field scientists don't jump to hasty diagnoses from a single photograph. FieldSense coordinates specialist agents (Pathology, Agronomy, and Micro-climate) to formulate competing hypotheses and identify the exact discriminating field tests needed to distinguish them.
         </p>
 
+        {/* Quick Indian Field Presets */}
+        <div style={{ margin: '1rem 0', padding: '0.9rem', backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.85rem', color: '#166534', marginBottom: '0.5rem' }}>
+            <span>⚡ Quick Field Scenarios (Real Indian Farmer Field Presets):</span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', backgroundColor: '#ffffff', borderColor: '#86efac', color: '#14532d' }}
+              onClick={() => {
+                setObservationText('Cotton plants showing acute parawilt with drooping foliage and basal interveinal chlorosis 48 hours after heavy monsoon downpour in deep black clay soil.')
+                setAffectedParts('Basal older leaves near plant base')
+                setSymptomPattern('Interveinal chlorosis (yellowing between green veins)')
+                setSoilMoisture('Dense clay / compacted pooling water')
+                setRecentWeather('Prolonged overcast rain followed by sudden heat')
+                setSpreadExtent('Spreading cluster along row / patch')
+                setHabitatContext('Indian Black Cotton Vertisol (Cotton / Soybean / Pulses)')
+              }}
+            >
+              🌱 Cotton Parawilt in Black Soil
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', backgroundColor: '#ffffff', borderColor: '#86efac', color: '#14532d' }}
+              onClick={() => {
+                setObservationText('Paddy crop showing wavy straw-yellow lesions along leaf margins with tiny milky bacterial droplets observed in early morning humidity.')
+                setAffectedParts('Uniform across entire plant canopy')
+                setSymptomPattern('Uniform pale yellowing of entire leaf blade')
+                setSoilMoisture('Saturated / waterlogged from recent rain')
+                setRecentWeather('Prolonged overcast rain followed by sudden heat')
+                setSpreadExtent('Spreading cluster along row / patch')
+                setHabitatContext('Submerged Wetland Basin (Kharif Paddy Fields)')
+              }}
+            >
+              🌾 Paddy Bacterial Leaf Blight vs Zinc
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', backgroundColor: '#ffffff', borderColor: '#86efac', color: '#14532d' }}
+              onClick={() => {
+                setObservationText('Pigeonpea (Arhar) plants showing unilateral branch wilting in patches along the furrow while neighboring rows look green. High lime calcareous soil.')
+                setAffectedParts('One single side / branch only')
+                setSymptomPattern('Wilting / flagging despite moist soil')
+                setSoilMoisture('Evenly moist, crumbly loam')
+                setRecentWeather('Extended high heatwave and harsh sun')
+                setSpreadExtent('Isolated to single specimen; neighboring plants healthy')
+                setHabitatContext('Semi-Arid Red Loam / Alfisol (Pigeonpea / Chickpea / Millets)')
+              }}
+            >
+              🌿 Pigeonpea (Arhar) Patch Wilt
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', backgroundColor: '#ffffff', borderColor: '#86efac', color: '#14532d' }}
+              onClick={() => {
+                setObservationText('Wheat young emerging terminal shoots turning brilliant lemon-yellow with veins remaining green in high pH (>8.0) calcareous soil.')
+                setAffectedParts('Young terminal shoots and top leaves')
+                setSymptomPattern('Interveinal chlorosis (yellowing between green veins)')
+                setSoilMoisture('Evenly moist, crumbly loam')
+                setRecentWeather('Steady temperate weather')
+                setSpreadExtent('All adjacent unrelated plant species affected')
+                setHabitatContext('Calcareous Semi-Arid Soil with Lime Concretions (pH > 7.8)')
+              }}
+            >
+              🍋 Lime-Induced Iron Chlorosis (pH &gt; 7.8)
+            </button>
+          </div>
+        </div>
+
         {/* Observation text input */}
         <div className="form-group">
           <label className="form-label" htmlFor="field-observation-input">
