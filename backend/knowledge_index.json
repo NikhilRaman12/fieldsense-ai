@@ -26,5 +26,33 @@
     "domain": "Ecophysiology",
     "passage": "Sudden transitions from overcast, moisture-saturated weather to intense solar irradiance exceed the photoprotective capacity of photosystem II (PSII). Reactive oxygen species (ROS) degrade chlorophyll pigments, causing photobleaching and marginal scorching specifically on sun-exposed upper surfaces, leaving shaded lower leaves unblemished.",
     "scientificKey": "Abiotic Thermal Bleaching"
+  },
+  {
+    "id": "KB-IND-RICE-BLB",
+    "topic": "Bacterial Leaf Blight vs Physiological Bronzing in Indian Paddy",
+    "domain": "Indian Cereal Pathology (ICAR-NRRI Benchmark)",
+    "passage": "In waterlogged Indian rice basins across Punjab, Andhra Pradesh, and West Bengal, growers often mistake early Bacterial Leaf Blight (Xanthomonas oryzae pv. oryzae) for nutrient deficiency. BLB exhibits distinctive wavy marginal water-soaked lesions that turn straw-yellow, exudating milky bacterial ooze during humid mornings. In contrast, Zinc deficiency (Khaira disease) manifests 2-3 weeks after transplanting as reddish-brown pigmentation or bronzing on older leaves without bacterial bacterial streaming.",
+    "scientificKey": "Bacterial Leaf Blight (Xanthomonas oryzae pv. oryzae)"
+  },
+  {
+    "id": "KB-IND-COTTON-WILT",
+    "topic": "Cotton Wilt Complex in Vertisols (Black Cotton Soils)",
+    "domain": "Indian Commercial Fiber Agronomy (ICAR-CICR)",
+    "passage": "In Indian black cotton soils (Deccan Plateau / Maharashtra / Gujarat), high montmorillonite clay content causes severe shrink-swell behavior. Waterlogging during heavy monsoon spells causes root asphyxiation, predisposing cotton to Fusarium oxysporum f. sp. vasinfectum and Rhizoctonia bataticola (dry root rot). Scraping the lower stem cambium ring reveals deep chocolate-brown vascular xylem discoloration, distinguishing fungal wilt from temporary parawilt (anoxia-induced foliar drooping).",
+    "scientificKey": "Fusarium Wilt / Vertisol Complex"
+  },
+  {
+    "id": "KB-IND-PULSE-WILT",
+    "topic": "Pigeonpea & Chickpea Wilt in Rainfed Indian Agronomy",
+    "domain": "Pulse Pathology (ICRISAT / ICAR-IIPR Benchmark)",
+    "passage": "In semi-arid pulse tracts (Madhya Pradesh, Karnataka), Fusarium udum (pigeonpea) and Fusarium oxysporum f. sp. ciceris (chickpea) cause devastating losses. Unlike general drought stress where all plants wilt simultaneously across an entire field parcel, Fusarium wilt strikes in patches or individual plants along the furrow. Splitting the taproot longitudinally reveals distinct dark purple or brown xylem vascular bands running upwards from the root collar.",
+    "scientificKey": "Fusarium Pulse Wilt (ICRISAT Benchmark)"
+  },
+  {
+    "id": "KB-IND-LIME-CHLOROSIS",
+    "topic": "Lime-Induced Iron Chlorosis in Calcareous Semi-Arid Soils",
+    "domain": "Indian Soil Chemistry & Nutrient Dynamics",
+    "passage": "In calcareous soils containing high free calcium carbonate (CaCO3) with pH > 7.8 (common in western and central India), iron (Fe2+) is precipitated as insoluble ferric hydroxides. Because Iron is phloem-immobile, deficiency symptoms first manifest as intense ivory-white or bright lemon-yellow chlorosis on the youngest emerging terminal shoots and leaflets, with green veins sharply preserved. Standard soil iron application fails; foliar chelated iron (Fe-EDDHA) is required.",
+    "scientificKey": "Lime-Induced Iron Chlorosis"
   }
 ]

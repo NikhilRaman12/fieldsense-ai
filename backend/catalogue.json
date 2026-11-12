@@ -2,7 +2,7 @@
   {
     "sku": "KIT-SOIL-PH-01",
     "title": "Precision Soil Ribbon & pH Field Test Kit",
-    "description": "Rapid chemical reagent test to verify root zone pH (4.0-9.0) and distinguish anaerobic soil compaction from simple drought.",
+    "description": "Rapid chemical reagent test to verify root zone pH (4.0-9.0) and distinguish anaerobic soil compaction from simple drought in Indian Black Cotton and Alluvial soils.",
     "category": "diagnostic",
     "price": 18.99,
     "currency": "USD",
@@ -16,7 +16,7 @@
   {
     "sku": "OPT-LOUPE-10X",
     "title": "Botanical 10x Achromatic Field Loupe with LED",
-    "description": "Essential field optical magnifier to inspect leaf undersides for fungal acervuli, pycnidia fruiting bodies, and microscopic mite frass.",
+    "description": "Essential field optical magnifier to inspect leaf undersides for fungal acervuli, pycnidia fruiting bodies, and microscopic mite frass on cotton, paddy, and pulse foliage.",
     "category": "diagnostic",
     "price": 14.50,
     "currency": "USD",
@@ -30,7 +30,7 @@
   {
     "sku": "ECO-MICRONUT-01",
     "title": "Chelated Magnesium & Nitrogen Organic Bio-Fertilizer (1L)",
-    "description": "OMRI-listed fast-acting foliar liquid spray delivering readily bioavailable Mg and N to resolve basal interveinal chlorosis.",
+    "description": "OMRI-listed fast-acting foliar liquid spray delivering readily bioavailable Mg and N to resolve basal interveinal chlorosis across wheat, maize, and sugarcane.",
     "category": "remediation",
     "price": 24.00,
     "currency": "USD",
@@ -44,7 +44,7 @@
   {
     "sku": "BIO-TRICHO-ROOT",
     "title": "Trichoderma harzianum Root Shield Bio-Fungicide (250g)",
-    "description": "Beneficial endophytic biological inoculant that colonizes root surfaces, outcompeting Fusarium and Pythium root rot pathogens.",
+    "description": "Beneficial endophytic biological inoculant that colonizes root surfaces, outcompeting Fusarium wilt and Pythium root rot pathogens in pulses and cotton.",
     "category": "remediation",
     "price": 29.50,
     "currency": "USD",
@@ -58,7 +58,7 @@
   {
     "sku": "ECO-NEEM-SHIELD",
     "title": "Cold-Pressed Pure Organic Neem Oil Spray Concentrate (500ml)",
-    "description": "Natural broad-spectrum foliar defense effective against piercing-sucking pests and powdery mildew foliar spores.",
+    "description": "Natural cold-pressed Azadirachtin (1500 ppm) broad-spectrum foliar botanical defense against whiteflies, aphids, bollworms, and blast sporulation.",
     "category": "remediation",
     "price": 16.75,
     "currency": "USD",
@@ -66,6 +66,76 @@
     "target_hypotheses": [
       "Foliar Fungal Blight or Septoria Leaf Spot",
       "Piercing-Sucking Insect Damage",
+      "Invertebrate Herbivory"
+    ]
+  },
+  {
+    "sku": "NPK-RAPID-STRIP",
+    "title": "ICAR-Standard N-P-K Rapid Colorimetric Soil Test Strip Kit (50 Tests)",
+    "description": "Field-ready soil macro-nutrient diagnostic strips calibrated for Indian soil fertility zones to test available ammoniacal/nitrate Nitrogen, Phosphorus, and Potassium in 5 minutes.",
+    "category": "diagnostic",
+    "price": 22.50,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Mobile Nutrient Translocation (Nitrogen or Magnesium Deficiency)",
+      "Potassium Deficiency Margin Scorch",
+      "Phosphorus Deficit Stunting in Alkaline Soils"
+    ]
+  },
+  {
+    "sku": "PSEUDO-FLUOR-BIO",
+    "title": "Pseudomonas fluorescens 1.0% WP Bio-Bactericide & Growth Promoter (500g)",
+    "description": "CIB&RC-registered bio-agent producing phenazines and siderophores to suppress Bacterial Leaf Blight (Xanthomonas oryzae) in paddy and Rhizoctonia sheath blight.",
+    "category": "remediation",
+    "price": 19.99,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Bacterial Leaf Blight (Xanthomonas oryzae pv. oryzae)",
+      "Rhizoctonia Sheath Blight in Submerged Tillers",
+      "Foliar Bacterial Streaking"
+    ]
+  },
+  {
+    "sku": "FERROUS-CHELATE-EDDHA",
+    "title": "EDDHA-Chelated Iron (Fe-6%) Water-Soluble Micronutrient (250g)",
+    "description": "High-stability chelated iron formulation active up to pH 9.0 to correct acute lime-induced iron chlorosis in calcareous semi-arid soils.",
+    "category": "remediation",
+    "price": 21.00,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Lime-Induced Iron Chlorosis (Calcareous Soil pH > 7.8)",
+      "Apical Shoot Interveinal Bleaching",
+      "Micronutrient Lockout"
+    ]
+  },
+  {
+    "sku": "ZINC-SOLUBLE-BIO",
+    "title": "Zinc Solubilizing Bio-Inoculant & Chelated Zn 12% Spray (500ml)",
+    "description": "Liquid consortia of zinc-mobilizing bacteria (ZSB) with foliar EDTA zinc to treat Khaira disease (bronzing/chlorosis) in waterlogged wetland rice basins.",
+    "category": "remediation",
+    "price": 17.50,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Zinc Deficiency (Khaira Disease) in Submerged Soils",
+      "Paddy Leaf Bronzing & Stunted Internodes",
+      "Alkaline Soil Micro-Nutrient Lockout"
+    ]
+  },
+  {
+    "sku": "ENTOMO-PHERO-TRAP",
+    "title": "Delta Pheromone Trap Kit for Spodoptera & Pink Bollworm (Pack of 5)",
+    "description": "Standardized monitoring lure and sticky delta trap kit calibrated for early non-pesticidal pest threshold detection in cotton, pulses, and maize.",
+    "category": "diagnostic",
+    "price": 15.00,
+    "currency": "USD",
+    "in_stock": true,
+    "target_hypotheses": [
+      "Piercing-Sucking Insect Damage",
+      "Helicoverpa / Spodoptera Foliar Larval Damage",
       "Invertebrate Herbivory"
     ]
   }

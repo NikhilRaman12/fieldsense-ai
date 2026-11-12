@@ -90,9 +90,18 @@ def knowledge_agent(state: InvestigationState) -> Dict[str, Any]:
     matched_passages = []
     for doc in kb:
         topic = doc.get("topic", "").lower()
-        if "nitrogen" in topic and ("chlorosis" in all_text or "yellow" in all_text):
+        domain = doc.get("domain", "").lower()
+        if "bacterial" in topic and ("paddy" in all_text or "rice" in all_text or "blight" in all_text or "wavy" in all_text):
             matched_passages.append(doc)
-        elif "anoxia" in topic and ("waterlog" in all_text or "saturated" in all_text or "rain" in all_text):
+        elif "cotton" in topic and ("cotton" in all_text or "black" in all_text or "vertisol" in all_text):
+            matched_passages.append(doc)
+        elif "pulse" in topic and ("pulse" in all_text or "pigeonpea" in all_text or "chickpea" in all_text or "arhar" in all_text):
+            matched_passages.append(doc)
+        elif "lime" in topic and ("alkaline" in all_text or "lime" in all_text or "iron" in all_text or "calcareous" in all_text or "young" in all_text or "terminal" in all_text):
+            matched_passages.append(doc)
+        elif "nitrogen" in topic and ("chlorosis" in all_text or "yellow" in all_text):
+            matched_passages.append(doc)
+        elif "anoxia" in topic and ("waterlog" in all_text or "saturated" in all_text or "rain" in all_text or "clay" in all_text):
             matched_passages.append(doc)
         elif "vascular" in topic and ("single" in all_text or "isolated" in all_text or "wilt" in all_text):
             matched_passages.append(doc)
@@ -165,6 +174,7 @@ def hypothesis_agent(state: InvestigationState) -> Dict[str, Any]:
 
 # --- AGENT 5: FIELD-TEST AGENT ---
 def field_test_agent(state: InvestigationState) -> Dict[str, Any]:
+    all_text = (" ".join(state["vision_findings"]) + " " + " ".join(state["context_findings"])).lower()
     tests = [
         {
             "target_hypotheses": "Root Anoxia vs. True Nutrient Deficiency",
@@ -179,6 +189,22 @@ def field_test_agent(state: InvestigationState) -> Dict[str, Any]:
             "risk_or_impact": "Perform gently on a non-vital lower lateral shoot."
         }
     ]
+
+    if "paddy" in all_text or "rice" in all_text or "blight" in all_text or "waterlog" in all_text:
+        tests.append({
+            "target_hypotheses": "Bacterial Leaf Blight vs. Khaira Zinc Bronzing (ICAR Benchmark)",
+            "recommended_action": "Perform the standard ICAR bacterial ooze test: snip an active leaf margin lesion and submerge the cut edge in a clear glass tube of water.",
+            "what_to_look_for": "Milky, turbid bacterial streaming oozing within 1-2 minutes confirms Bacterial Leaf Blight; clear water with localized foliar bronzing indicates abiotic Zinc deficiency.",
+            "risk_or_impact": "Single leaf sample only; prevents misapplication of expensive chemical sprays."
+        })
+    elif "cotton" in all_text or "black" in all_text or "clay" in all_text:
+        tests.append({
+            "target_hypotheses": "Fusarium Cotton Wilt vs. Monsoon Parawilt (Vertisol Asphyxiation)",
+            "recommended_action": "Split the lower taproot and collar vertically with a clean blade.",
+            "what_to_look_for": "Continuous chocolate-brown xylem discoloration confirms vascular fungal wilt; healthy pale cream xylem with outer root cortex collapse indicates temporary soil saturation anoxia (Parawilt).",
+            "risk_or_impact": "Sacrifice one severely symptomatic edge plant to protect entire acreage."
+        })
+
     return {"field_tests": tests}
 
 # --- AGENT 6: REVIEW AGENT ---

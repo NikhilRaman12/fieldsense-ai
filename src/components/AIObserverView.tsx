@@ -317,17 +317,19 @@ export const AIObserverView: React.FC<AIObserverViewProps> = ({
               </div>
 
               <div>
-                <label className="form-label" style={{ fontSize: '0.82rem' }}>Ecological habitat setting</label>
+                <label className="form-label" style={{ fontSize: '0.82rem' }}>Cropping System & Soil Agro-Zone</label>
                 <select
                   className="field-select"
                   value={habitatContext}
                   onChange={(e) => setHabitatContext(e.target.value)}
                 >
+                  <option value="Indian Black Cotton Vertisol (Cotton / Soybean / Pulses)">Indian Black Cotton Vertisol (Cotton / Soybean / Pulses)</option>
+                  <option value="Indo-Gangetic Alluvial Basin (Paddy - Wheat Rotation)">Indo-Gangetic Alluvial Basin (Paddy - Wheat Rotation)</option>
+                  <option value="Semi-Arid Red Loam / Alfisol (Pigeonpea / Chickpea / Millets)">Semi-Arid Red Loam / Alfisol (Pigeonpea / Chickpea / Millets)</option>
+                  <option value="Submerged Wetland Basin (Kharif Paddy Fields)">Submerged Wetland Basin (Kharif Paddy Fields)</option>
+                  <option value="Calcareous Semi-Arid Soil with Lime Concretions (pH > 7.8)">Calcareous Semi-Arid Soil with Lime Concretions (pH &gt; 7.8)</option>
+                  <option value="Horticultural Plantation / Fruit Orchard (Mango / Citrus / Guava)">Horticultural Plantation / Fruit Orchard (Mango / Citrus / Guava)</option>
                   <option value="Garden vegetable / raised border bed">Garden vegetable / raised border bed</option>
-                  <option value="Container / patio potted plant">Container / patio potted plant</option>
-                  <option value="Orchard / deciduous tree canopy">Orchard / deciduous tree canopy</option>
-                  <option value="Wild forest verge / natural hedgerow">Wild forest verge / natural hedgerow</option>
-                  <option value="Open grassland / lawn meadow">Open grassland / lawn meadow</option>
                 </select>
               </div>
             </div>
